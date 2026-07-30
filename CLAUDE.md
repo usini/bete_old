@@ -193,6 +193,16 @@ dictionary objects (`STRINGS.fr`, `STRINGS.en`) plus a lookup function.
   that in one go, in this browser. It only edits local bookkeeping, never the
   actual peer/host — each device still needs to run this once (or get a
   fresh link) after the real rotation.
+- **A liaison you HOST is bookmarked too**, not just one you join as a
+  client: `recordLiaison`/`recordBoard` used to only ever run client-side
+  (joining via `?peer=`), so creating a liaison and just navigating away
+  lost it entirely — no way back short of re-sharing the link. `sync.js`'s
+  `openHostPeer` now calls both, the moment the host peer id is actually
+  confirmed open (`peer.on('open', ...)`, not on `startHost()` — the id
+  isn't real yet at that point): the liaison is named after the current
+  board, and that board's own "boards" directory entry is pointed at the
+  new peer, so it shows up grouped under its liaison there too instead of
+  staying "unlinked".
 - Host/client election (`joinOrHost`): the first to claim the peer id becomes
   the host, subsequent ones become clients. Host heartbeat (3s) + client
   watchdog (8s) to detect connection loss. **Cautious** reconnection: the

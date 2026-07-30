@@ -13,9 +13,9 @@
 //    (a desktop build, or one with a working proxy) to fetch it for us;
 //  - web: an optional proxy (Settings > ICS proxy), e.g. the endpoint served
 //    by server/bete-host.js on a Raspberry Pi (see server/README.md).
-import { isDesktop } from './platform.js?v=ms7c2a3u';
-import { connectorFetch } from './connector.js?v=ms7c2a3u';
-import { requestIcsFromPeers } from './sync.js?v=ms7c2a3u';
+import { isDesktop } from './platform.js?v=ms7chxev';
+import { connectorFetch } from './connector.js?v=ms7chxev';
+import { requestIcsFromPeers } from './sync.js?v=ms7chxev';
 
 const PROXY_KEY = 'bete:icsproxy';
 export function getIcsProxy() {

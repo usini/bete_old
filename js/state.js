@@ -1,7 +1,7 @@
 // Shared data model + localStorage persistence.
-import { pointInHex } from './geom.js?v=ms7c2a3u';
-import { getUserId } from './users.js?v=ms7c2a3u';
-import { parseBoardUrl, buildBoardUrl } from './boards.js?v=ms7c2a3u';
+import { pointInHex } from './geom.js?v=ms7chxev';
+import { getUserId } from './users.js?v=ms7chxev';
+import { parseBoardUrl, buildBoardUrl } from './boards.js?v=ms7chxev';
 
 export const DEFAULT_GREEN = '#39ff14';
 
