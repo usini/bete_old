@@ -10,10 +10,12 @@
     "updater:default",
     "process:default",
     "dialog:allow-save",
+    "dialog:allow-open",
     "fs:allow-write-text-file",
     "allow-check-web-update",
     "allow-get-lan-url",
     "allow-fetch-ics",
+    "allow-write-export-file",
     {
       "identifier": "opener:allow-open-url",
       "allow": [

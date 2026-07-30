@@ -70,6 +70,20 @@ desktop apps poll `js/update.js` (via the `tauri-plugin-updater`, pointed at
 `.../releases/latest/download/latest.json`) on every boot; if a newer signed
 version is found, a popup offers to download, install, and relaunch.
 
+## Export on exit
+
+Closing the window exports every board (same bundle as Settings > Data >
+"Export all boards") straight into a folder on disk, no Save As dialog — the
+first time, there's nothing to remember yet, so that close doubles as the
+"pick your folder" prompt instead (cancelling it just skips straight to
+closing, this is a convenience backup, not something that can block you out
+of the app). Change the folder anytime from the same desktop-only Settings >
+Data section. See `js/main.js`: `initExportOnExit`, `js/platform.js`:
+`pickExportFolder`/`writeExportFile`, and `write_export_file` in
+`src-tauri/src/lib.rs` (a plain Rust `std::fs::write` — the webview fs
+plugin's path-scope exemption only covers a path a dialog just returned, not
+one remembered from an earlier run).
+
 ## Notes
 
 - P2P sync (PeerJS/WebRTC) works the same as in a browser — no native

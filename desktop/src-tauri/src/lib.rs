@@ -263,6 +263,19 @@ fn fetch_ics_blocking(url: &str) -> Result<String, String> {
     Ok(text)
 }
 
+// Writes the "export all boards on exit" JSON straight to disk, given an
+// absolute path (a directory the user picked once via the dialog plugin --
+// see js/platform.js: pickExportFolder -- plus a dated filename built in JS).
+// A plain Rust std::fs::write isn't bound by the webview fs plugin's path
+// scope (that scope only auto-exempts a path just returned BY a dialog
+// picker, not an arbitrary path built from a remembered one on a later run),
+// so this is the straightforward way to silently write into a remembered
+// folder without a fresh Save-As prompt on every single exit.
+#[tauri::command]
+fn write_export_file(path: String, contents: String) -> Result<(), String> {
+    std::fs::write(&path, contents).map_err(|e| e.to_string())
+}
+
 // WRY's default navigation policy (especially on Android) punts anything it
 // doesn't recognize as "the same page" out to the system browser -- including
 // a plain `location.href = ...` to another query string on the same origin,
@@ -286,7 +299,7 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_opener::init())
-        .invoke_handler(tauri::generate_handler![get_lan_url, check_web_update, fetch_ics])
+        .invoke_handler(tauri::generate_handler![get_lan_url, check_web_update, fetch_ics, write_export_file])
         .setup(|app| {
             // Desktop only: the hot-web-update trick (check_web_update) needs
             // the window to load over plain HTTP from our own local server

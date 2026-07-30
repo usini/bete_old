@@ -13,7 +13,12 @@ identifier = "allow-fetch-ics"
 description = "Allows fetching a .ics calendar feed server-side (bypasses browser CORS)"
 commands.allow = ["fetch_ics"]
 
+[[permission]]
+identifier = "allow-write-export-file"
+description = "Allows writing the on-exit board export to a remembered folder"
+commands.allow = ["write_export_file"]
+
 [[set]]
 identifier = "default"
 description = "Default permissions for Bete's own application commands"
-permissions = ["allow-check-web-update", "allow-get-lan-url", "allow-fetch-ics"]
+permissions = ["allow-check-web-update", "allow-get-lan-url", "allow-fetch-ics", "allow-write-export-file"]

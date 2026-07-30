@@ -89,6 +89,49 @@ export async function saveTextFile(text, filename, extFilter) {
   }
 }
 
+// ---- Export-on-exit: remembered default folder (desktop only) ----
+// See main.js: registers a window close-requested handler that exports
+// every board to this folder before actually closing (prompting for it via
+// pickExportFolder the first time, since there's nothing to remember yet).
+const EXPORT_DIR_KEY = 'bete:exportdir';
+export function getExportFolder() {
+  try { return localStorage.getItem(EXPORT_DIR_KEY) || ''; } catch (e) { return ''; }
+}
+export function setExportFolder(dir) {
+  try { if (dir) localStorage.setItem(EXPORT_DIR_KEY, dir); else localStorage.removeItem(EXPORT_DIR_KEY); } catch (e) { /* */ }
+}
+
+// Native folder picker (desktop only). Returns the chosen absolute path, or
+// null if the user cancelled.
+export async function pickExportFolder() {
+  if (!isDesktop) return null;
+  try {
+    const { open } = await import(DIALOG_MOD);
+    const dir = await open({ directory: true, multiple: false });
+    return dir || null;
+  } catch (e) {
+    console.error('Bete: pickExportFolder failed', e);
+    return null;
+  }
+}
+
+// Writes a file straight into an already-known folder, no dialog -- see
+// write_export_file in desktop/src-tauri/src/lib.rs for why this goes
+// through a Rust command instead of the fs plugin directly (its path-scope
+// exemption only covers a path a dialog JUST returned, not one remembered
+// from an earlier run).
+export async function writeExportFile(dir, filename, contents) {
+  if (!isDesktop) return false;
+  try {
+    const path = dir.replace(/[\\/]+$/, '') + '/' + filename;
+    await window.__TAURI__.core.invoke('write_export_file', { path, contents });
+    return true;
+  } catch (e) {
+    console.error('Bete: writeExportFile failed', e);
+    return false;
+  }
+}
+
 // Opens an external (http/https) link in the system's default browser.
 //
 // On the web build, window.open(_blank) is exactly what you want. Inside the

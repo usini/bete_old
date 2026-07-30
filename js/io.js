@@ -1,14 +1,14 @@
 // JSON export / import.
-import { serialize, load, getBoardId, scheduleSave } from './state.js?v=ms7d04ny';
-import { reset } from './physics.js?v=ms7d04ny';
-import { state } from './state.js?v=ms7d04ny';
-import { inlineImages, migrateImages, hasImageLocally } from './images.js?v=ms7d04ny';
-import { inlineAudio, restoreAudio, hasAudioLocally } from './voice.js?v=ms7d04ny';
-import { requestImage, requestAudio, liaisonStatus } from './sync.js?v=ms7d04ny';
-import { listBoards, recordBoard } from './boards.js?v=ms7d04ny';
-import { t } from './i18n.js?v=ms7d04ny';
-import { saveTextFile } from './platform.js?v=ms7d04ny';
-import { toast } from './main.js?v=ms7d04ny';
+import { serialize, load, getBoardId, scheduleSave } from './state.js?v=ms7dp3jb';
+import { reset } from './physics.js?v=ms7dp3jb';
+import { state } from './state.js?v=ms7dp3jb';
+import { inlineImages, migrateImages, hasImageLocally } from './images.js?v=ms7dp3jb';
+import { inlineAudio, restoreAudio, hasAudioLocally } from './voice.js?v=ms7dp3jb';
+import { requestImage, requestAudio, liaisonStatus } from './sync.js?v=ms7dp3jb';
+import { listBoards, recordBoard } from './boards.js?v=ms7dp3jb';
+import { t } from './i18n.js?v=ms7dp3jb';
+import { saveTextFile, writeExportFile } from './platform.js?v=ms7dp3jb';
+import { toast } from './main.js?v=ms7dp3jb';
 
 function downloadJSON(obj, filename) {
   saveTextFile(JSON.stringify(obj), filename, 'json');
@@ -66,12 +66,15 @@ export async function exportJSON() {
   downloadJSON(snap, 'bete-' + getBoardId() + '-' + dateStamp() + '.json');
 }
 
-// Bulk backup: every board this browser knows about (see boards.js), each
-// with its images/audio re-inlined so the file is self-contained (no
+// Builds the "every board this browser knows about" bundle (see boards.js),
+// each with its images/audio re-inlined so the file is self-contained (no
 // IndexedDB refs -- see images.js: inlineImages, voice.js: inlineAudio).
 // Passive check only (no active peer fetch): a board not currently open has
-// no live connection to ask.
-export async function exportAllBoards() {
+// no live connection to ask. Shared by exportAllBoards() (interactive, Save
+// As dialog) and the desktop exit-export (main.js, writes silently to a
+// remembered folder instead) -- factored out so the latter doesn't have to
+// go through a file-picker dialog just to get the same bytes.
+async function buildAllBoardsBundle() {
   const bundle = { version: 1, boards: {} };
   let missingTotal = 0;
   for (const b of listBoards()) {
@@ -87,8 +90,21 @@ export async function exportAllBoards() {
     }
     bundle.boards[b.id] = { name: b.name, peer: b.peer, ts: b.ts, data };
   }
+  return { bundle, missingTotal };
+}
+
+export async function exportAllBoards() {
+  const { bundle, missingTotal } = await buildAllBoardsBundle();
   if (missingTotal) toast(t('toast.mediaMissing', { n: missingTotal }), 4000);
   downloadJSON(bundle, 'bete-all-boards-' + dateStamp() + '.json');
+}
+
+// Desktop only: writes the same bundle straight into `dir` (a folder chosen
+// once via Settings > Data or the exit-export prompt, see main.js), no Save
+// As dialog. Returns true on success.
+export async function exportAllBoardsToPath(dir) {
+  const { bundle } = await buildAllBoardsBundle();
+  return writeExportFile(dir, 'bete-all-boards-' + dateStamp() + '.json', JSON.stringify(bundle));
 }
 
 export function importJSON(onDone) {

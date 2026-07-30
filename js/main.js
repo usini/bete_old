@@ -1,26 +1,27 @@
 // Bootstrap + render loop.
-import { state, addRect, load, setSaveSuppressed, scheduleSave, newId, setBoardId, setBoardName, getBoardName, initUndoBaseline, restore, COLORS } from './state.js?v=ms7d04ny';
-import { setView } from './camera.js?v=ms7d04ny';
-import { render } from './render.js?v=ms7d04ny';
-import { step, reset } from './physics.js?v=ms7d04ny';
-import * as minimap from './minimap.js?v=ms7d04ny';
-import * as input from './input.js?v=ms7d04ny';
-import * as fx from './fx.js?v=ms7d04ny';
-import { joinOrHost, getNetMode, liaisonStatus, disconnect, getUserCount, getPresence } from './sync.js?v=ms7d04ny';
-import { recordBoard, getBoardEntry, listBoards, buildBoardUrl, parseBoardUrl, reservedBoardLabel } from './boards.js?v=ms7d04ny';
-import { TUTORIAL_FR, TUTORIAL_EN } from './tutorial.js?v=ms7d04ny';
-import { applyTheme } from './theme.js?v=ms7d04ny';
-import { initSettings, openSettings } from './settings.js?v=ms7d04ny';
-import { recordLiaison, getLiaison, listLiaisons } from './liaisons.js?v=ms7d04ny';
-import { positionVideoOverlay } from './video.js?v=ms7d04ny';
-import { toggleMic, isMicOn, toggleListen, isListenOn } from './voicechat.js?v=ms7d04ny';
-import { migrateImages } from './images.js?v=ms7d04ny';
-import { restoreAudio } from './voice.js?v=ms7d04ny';
-import { ensureTodaySnapshot } from './history.js?v=ms7d04ny';
-import { pollConnector } from './connector.js?v=ms7d04ny';
-import { t, getLang, applyStaticI18n } from './i18n.js?v=ms7d04ny';
-import { initDesktopLink, checkWebUpdate } from './platform.js?v=ms7d04ny';
-import { checkForUpdate } from './update.js?v=ms7d04ny';
+import { state, addRect, load, setSaveSuppressed, scheduleSave, newId, setBoardId, setBoardName, getBoardName, initUndoBaseline, restore, COLORS } from './state.js?v=ms7dp3jb';
+import { setView } from './camera.js?v=ms7dp3jb';
+import { render } from './render.js?v=ms7dp3jb';
+import { step, reset } from './physics.js?v=ms7dp3jb';
+import * as minimap from './minimap.js?v=ms7dp3jb';
+import * as input from './input.js?v=ms7dp3jb';
+import * as fx from './fx.js?v=ms7dp3jb';
+import { joinOrHost, getNetMode, liaisonStatus, disconnect, getUserCount, getPresence } from './sync.js?v=ms7dp3jb';
+import { recordBoard, getBoardEntry, listBoards, buildBoardUrl, parseBoardUrl, reservedBoardLabel } from './boards.js?v=ms7dp3jb';
+import { TUTORIAL_FR, TUTORIAL_EN } from './tutorial.js?v=ms7dp3jb';
+import { applyTheme } from './theme.js?v=ms7dp3jb';
+import { initSettings, openSettings } from './settings.js?v=ms7dp3jb';
+import { recordLiaison, getLiaison, listLiaisons } from './liaisons.js?v=ms7dp3jb';
+import { positionVideoOverlay } from './video.js?v=ms7dp3jb';
+import { toggleMic, isMicOn, toggleListen, isListenOn } from './voicechat.js?v=ms7dp3jb';
+import { migrateImages } from './images.js?v=ms7dp3jb';
+import { restoreAudio } from './voice.js?v=ms7dp3jb';
+import { ensureTodaySnapshot } from './history.js?v=ms7dp3jb';
+import { pollConnector } from './connector.js?v=ms7dp3jb';
+import { t, getLang, applyStaticI18n } from './i18n.js?v=ms7dp3jb';
+import { initDesktopLink, checkWebUpdate, isDesktop, getExportFolder, setExportFolder, pickExportFolder } from './platform.js?v=ms7dp3jb';
+import { checkForUpdate } from './update.js?v=ms7dp3jb';
+import { exportAllBoardsToPath } from './io.js?v=ms7dp3jb';
 
 applyTheme(); // apply the saved theme right at startup
 applyStaticI18n(); // translate the static HTML chrome (buttons, hint, etc.)
@@ -31,6 +32,32 @@ checkForUpdate(); // no-op on the web build; offers to install a newer desktop r
 // doesn't freeze the window, but a page reload with zero warning still reads
 // as "did this just crash?" -- so a brief toast announces it first.
 checkWebUpdate(() => toast(t('update.webApplying'), 1500));
+if (isDesktop) initExportOnExit(); // no-op on the web build (tab close can't be intercepted/exported anyway)
+
+// Exports every board to a remembered folder right before the window
+// actually closes -- the first time, there's nothing to remember yet, so
+// this doubles as the "pick your default folder" prompt. Cancelling the
+// picker (or the export itself failing) never blocks the close -- this is a
+// convenience backup, not a save confirmation the user has to get past.
+const WINDOW_MOD = 'https://esm.sh/@tauri-apps/api@2/window';
+async function initExportOnExit() {
+  let win;
+  try {
+    const { getCurrentWindow } = await import(WINDOW_MOD);
+    win = getCurrentWindow();
+  } catch (e) { console.error('Bete: failed to load window API', e); return; }
+  win.onCloseRequested(async (event) => {
+    event.preventDefault();
+    try {
+      let dir = getExportFolder();
+      if (!dir) { dir = await pickExportFolder(); if (dir) setExportFolder(dir); }
+      if (dir) await exportAllBoardsToPath(dir);
+    } catch (e) {
+      console.error('Bete: export-on-exit failed', e);
+    }
+    win.destroy();
+  });
+}
 
 let toastTimer = null;
 export function toast(msg, ms = 2400) {

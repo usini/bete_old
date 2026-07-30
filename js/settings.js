@@ -4,22 +4,22 @@
 // had grown into an unreadable wall of ~25 tiny buttons. The visited-boards
 // list that used to live here is gone: the built-in "boards" directory board
 // (js/main.js: loadBoardsDirectory) already is that list, one tile away.
-import { state, getBoardId, scheduleSave, load } from './state.js?v=ms7d04ny';
-import { reset } from './physics.js?v=ms7d04ny';
-import { theme, themeId_, setTheme, getTextScale, setTextScale, THEME_LIST } from './theme.js?v=ms7d04ny';
-import { listBoardHistory, updateTodaySnapshot, todayStr } from './history.js?v=ms7d04ny';
-import { buildBoardUrl, parseBoardUrl, renameBoardsPeer, rewriteLinksPeer } from './boards.js?v=ms7d04ny';
-import { listLiaisons, recordLiaison, renameLiaison, removeLiaison, changeLiaisonPeer } from './liaisons.js?v=ms7d04ny';
-import { toast } from './main.js?v=ms7d04ny';
-import { liaisonStatus, disconnect, getPresence, announceName, setBoardReadOnly, isOwner } from './sync.js?v=ms7d04ny';
-import { exportJSON, importJSON, exportAllBoards, importAllBoards } from './io.js?v=ms7d04ny';
-import { exportBoardHtml } from './exportHtml.js?v=ms7d04ny';
-import { getUserName, setUserName } from './users.js?v=ms7d04ny';
-import { isAlwaysOn, setAlwaysOn, listMics, getPreferredMic, setPreferredMic, isMicOn } from './voicechat.js?v=ms7d04ny';
-import { t, getLang, setLang, LANGS } from './i18n.js?v=ms7d04ny';
-import { isDesktop, getLinkMode, setLinkMode, getAppVersion, checkWebUpdate } from './platform.js?v=ms7d04ny';
-import { getIcsProxy, setIcsProxy } from './ics.js?v=ms7d04ny';
-import { checkForUpdate } from './update.js?v=ms7d04ny';
+import { state, getBoardId, scheduleSave, load } from './state.js?v=ms7dp3jb';
+import { reset } from './physics.js?v=ms7dp3jb';
+import { theme, themeId_, setTheme, getTextScale, setTextScale, THEME_LIST } from './theme.js?v=ms7dp3jb';
+import { listBoardHistory, updateTodaySnapshot, todayStr } from './history.js?v=ms7dp3jb';
+import { buildBoardUrl, parseBoardUrl, renameBoardsPeer, rewriteLinksPeer } from './boards.js?v=ms7dp3jb';
+import { listLiaisons, recordLiaison, renameLiaison, removeLiaison, changeLiaisonPeer } from './liaisons.js?v=ms7dp3jb';
+import { toast } from './main.js?v=ms7dp3jb';
+import { liaisonStatus, disconnect, getPresence, announceName, setBoardReadOnly, isOwner } from './sync.js?v=ms7dp3jb';
+import { exportJSON, importJSON, exportAllBoards, importAllBoards } from './io.js?v=ms7dp3jb';
+import { exportBoardHtml } from './exportHtml.js?v=ms7dp3jb';
+import { getUserName, setUserName } from './users.js?v=ms7dp3jb';
+import { isAlwaysOn, setAlwaysOn, listMics, getPreferredMic, setPreferredMic, isMicOn } from './voicechat.js?v=ms7dp3jb';
+import { t, getLang, setLang, LANGS } from './i18n.js?v=ms7dp3jb';
+import { isDesktop, getLinkMode, setLinkMode, getAppVersion, checkWebUpdate, getExportFolder, setExportFolder, pickExportFolder } from './platform.js?v=ms7dp3jb';
+import { getIcsProxy, setIcsProxy } from './ics.js?v=ms7dp3jb';
+import { checkForUpdate } from './update.js?v=ms7dp3jb';
 
 function el(tag, cls, txt) {
   const e = document.createElement(tag);
@@ -308,6 +308,19 @@ function buildData(panel) {
       // else: the native updater's own install popup is already showing.
     });
     panel.appendChild(appBtn);
+
+    // Folder every board gets silently exported to right before the app
+    // window actually closes (see main.js: initExportOnExit) -- asked for
+    // once (the first close), remembered afterwards. Changeable here too.
+    panel.appendChild(el('div', 'set-label', t('settings.exportOnExit')));
+    const dir = getExportFolder();
+    panel.appendChild(el('div', 'set-sub', dir || t('settings.exportOnExit.none')));
+    const dirBtn = el('button', 'set-wide', t('settings.exportOnExit.change'));
+    dirBtn.addEventListener('click', async () => {
+      const picked = await pickExportFolder();
+      if (picked) { setExportFolder(picked); build(panel); }
+    });
+    panel.appendChild(dirBtn);
   }
 
   panel.appendChild(el('div', 'set-label', t('settings.data')));
