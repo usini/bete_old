@@ -4,22 +4,22 @@
 // had grown into an unreadable wall of ~25 tiny buttons. The visited-boards
 // list that used to live here is gone: the built-in "boards" directory board
 // (js/main.js: loadBoardsDirectory) already is that list, one tile away.
-import { state, getBoardId, scheduleSave, load } from './state.js?v=ms7chxev';
-import { reset } from './physics.js?v=ms7chxev';
-import { theme, themeId_, setTheme, getTextScale, setTextScale, THEME_LIST } from './theme.js?v=ms7chxev';
-import { listBoardHistory, updateTodaySnapshot, todayStr } from './history.js?v=ms7chxev';
-import { buildBoardUrl, parseBoardUrl, renameBoardsPeer, rewriteLinksPeer } from './boards.js?v=ms7chxev';
-import { listLiaisons, recordLiaison, renameLiaison, removeLiaison, changeLiaisonPeer } from './liaisons.js?v=ms7chxev';
-import { toast } from './main.js?v=ms7chxev';
-import { liaisonStatus, disconnect, getPresence, announceName, setBoardReadOnly, isOwner } from './sync.js?v=ms7chxev';
-import { exportJSON, importJSON, exportAllBoards, importAllBoards } from './io.js?v=ms7chxev';
-import { exportBoardHtml } from './exportHtml.js?v=ms7chxev';
-import { getUserName, setUserName } from './users.js?v=ms7chxev';
-import { isAlwaysOn, setAlwaysOn, listMics, getPreferredMic, setPreferredMic, isMicOn } from './voicechat.js?v=ms7chxev';
-import { t, getLang, setLang, LANGS } from './i18n.js?v=ms7chxev';
-import { isDesktop, getLinkMode, setLinkMode, getAppVersion, checkWebUpdate } from './platform.js?v=ms7chxev';
-import { getIcsProxy, setIcsProxy } from './ics.js?v=ms7chxev';
-import { checkForUpdate } from './update.js?v=ms7chxev';
+import { state, getBoardId, scheduleSave, load } from './state.js?v=ms7d04ny';
+import { reset } from './physics.js?v=ms7d04ny';
+import { theme, themeId_, setTheme, getTextScale, setTextScale, THEME_LIST } from './theme.js?v=ms7d04ny';
+import { listBoardHistory, updateTodaySnapshot, todayStr } from './history.js?v=ms7d04ny';
+import { buildBoardUrl, parseBoardUrl, renameBoardsPeer, rewriteLinksPeer } from './boards.js?v=ms7d04ny';
+import { listLiaisons, recordLiaison, renameLiaison, removeLiaison, changeLiaisonPeer } from './liaisons.js?v=ms7d04ny';
+import { toast } from './main.js?v=ms7d04ny';
+import { liaisonStatus, disconnect, getPresence, announceName, setBoardReadOnly, isOwner } from './sync.js?v=ms7d04ny';
+import { exportJSON, importJSON, exportAllBoards, importAllBoards } from './io.js?v=ms7d04ny';
+import { exportBoardHtml } from './exportHtml.js?v=ms7d04ny';
+import { getUserName, setUserName } from './users.js?v=ms7d04ny';
+import { isAlwaysOn, setAlwaysOn, listMics, getPreferredMic, setPreferredMic, isMicOn } from './voicechat.js?v=ms7d04ny';
+import { t, getLang, setLang, LANGS } from './i18n.js?v=ms7d04ny';
+import { isDesktop, getLinkMode, setLinkMode, getAppVersion, checkWebUpdate } from './platform.js?v=ms7d04ny';
+import { getIcsProxy, setIcsProxy } from './ics.js?v=ms7d04ny';
+import { checkForUpdate } from './update.js?v=ms7d04ny';
 
 function el(tag, cls, txt) {
   const e = document.createElement(tag);

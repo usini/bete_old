@@ -140,3 +140,34 @@ export function rewriteLinksPeer(oldPeer, newPeer, skipBoardId) {
   }
   return count;
 }
+
+// Same idea as rewriteLinksPeer, but keyed off the TARGET board id instead
+// of an old peer -- for when a board that had no liaison yet just gained
+// one (or lost it): every board-link block pointing at `targetId`, across
+// every SAVED board, gets its peer updated to match (peer=null clears it).
+// Without this, a link created before the target board had a liaison (e.g.
+// Home's link to a board, made on first visit via seedHomeLink) stays stuck
+// peer-less forever, even after the target board is later linked to a
+// liaison (see sync.js: openHostPeer, input.js: dragging a board block into
+// a liaison circle on the "boards" directory). `skipBoardId` (the currently
+// open board) is skipped -- same reasoning as rewriteLinksPeer.
+export function rewriteLinksForBoard(targetId, peer, skipBoardId) {
+  let count = 0;
+  for (const b of listBoards()) {
+    if (b.id === skipBoardId) continue;
+    const key = 'bete:' + b.id;
+    let raw;
+    try { raw = localStorage.getItem(key); } catch (e) { continue; }
+    if (!raw) continue;
+    let data;
+    try { data = JSON.parse(raw); } catch (e) { continue; }
+    let changed = false;
+    for (const n of data.nodes || []) {
+      if (!n.link) continue;
+      const bu = parseBoardUrl(n.link);
+      if (bu && bu.id === targetId && (bu.peer || null) !== (peer || null)) { n.link = buildBoardUrl(targetId, peer); changed = true; count++; }
+    }
+    if (changed) { try { localStorage.setItem(key, JSON.stringify(data)); } catch (e) { /* */ } }
+  }
+  return count;
+}

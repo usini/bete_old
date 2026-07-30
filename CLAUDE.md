@@ -202,7 +202,14 @@ dictionary objects (`STRINGS.fr`, `STRINGS.en`) plus a lookup function.
   isn't real yet at that point): the liaison is named after the current
   board, and that board's own "boards" directory entry is pointed at the
   new peer, so it shows up grouped under its liaison there too instead of
-  staying "unlinked".
+  staying "unlinked". It also propagates to every OTHER saved board's own
+  link blocks pointing at this one (`boards.js`: `rewriteLinksForBoard`,
+  keyed by target board id rather than by old peer like `rewriteLinksPeer`)
+  — e.g. Home's link to it, made back when it had no liaison yet (via
+  `seedHomeLink`); without this that link would stay peer-less forever, so
+  clicking it would never actually connect. Same propagation on the
+  "boards" directory's own drag-a-board-into-a-circle re-pairing
+  (`input.js`).
 - Host/client election (`joinOrHost`): the first to claim the peer id becomes
   the host, subsequent ones become clients. Host heartbeat (3s) + client
   watchdog (8s) to detect connection loss. **Cautious** reconnection: the

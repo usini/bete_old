@@ -6,18 +6,18 @@
 // (falls back to host priority if both sides are on the same build) -- an
 // out-of-date host (stale tab, permanent Pi host not yet redeployed) must not
 // keep clobbering a freshly-updated peer's edits forever.
-import { state, removeById, scheduleSave, getBoardId, getBoardName, setBoardName } from './state.js?v=ms7chxev';
-import { reset } from './physics.js?v=ms7chxev';
-import { explodeElementCascade } from './fx.js?v=ms7chxev';
-import { putAudio, getAudio, delAudio, putImage, getImage } from './audio.js?v=ms7chxev';
-import { onImageArrived } from './images.js?v=ms7chxev';
-import { getUserId, displayName } from './users.js?v=ms7chxev';
-import { shareOrigin } from './platform.js?v=ms7chxev';
-import { recordBoard, parseBoardUrl, buildBoardUrl } from './boards.js?v=ms7chxev';
-import { getOwnerToken, recordLiaison } from './liaisons.js?v=ms7chxev';
-import { pollConnector, stopPolling, toggleSwitch } from './connector.js?v=ms7chxev';
-import { fetchIcsLocal, resolveIcsPeerResponse, retryFailedIcs } from './ics.js?v=ms7chxev';
-import { refreshBoardNameUI } from './main.js?v=ms7chxev';
+import { state, removeById, scheduleSave, getBoardId, getBoardName, setBoardName } from './state.js?v=ms7d04ny';
+import { reset } from './physics.js?v=ms7d04ny';
+import { explodeElementCascade } from './fx.js?v=ms7d04ny';
+import { putAudio, getAudio, delAudio, putImage, getImage } from './audio.js?v=ms7d04ny';
+import { onImageArrived } from './images.js?v=ms7d04ny';
+import { getUserId, displayName } from './users.js?v=ms7d04ny';
+import { shareOrigin } from './platform.js?v=ms7d04ny';
+import { recordBoard, rewriteLinksForBoard, parseBoardUrl, buildBoardUrl } from './boards.js?v=ms7d04ny';
+import { getOwnerToken, recordLiaison } from './liaisons.js?v=ms7d04ny';
+import { pollConnector, stopPolling, toggleSwitch } from './connector.js?v=ms7d04ny';
+import { fetchIcsLocal, resolveIcsPeerResponse, retryFailedIcs } from './ics.js?v=ms7d04ny';
+import { refreshBoardNameUI } from './main.js?v=ms7d04ny';
 
 let clientRoster = []; // client side: list of users received from the host
 let lastHostMsg = 0;   // client side: timestamp of the last message received from the host
@@ -819,9 +819,14 @@ function openHostPeer(id) {
     // back short of re-sharing the link. Bookmark it here too, named after
     // this board, and point this board's own "boards" directory entry at it
     // (see boards.js: recordBoard) so it shows up grouped under its liaison
-    // there too, instead of staying "unlinked" forever.
+    // there too, instead of staying "unlinked" forever. Also propagates to
+    // every OTHER saved board's own link blocks pointing at this one (e.g.
+    // Home's link to it, made back when this board had no liaison yet) --
+    // without this they'd stay peer-less forever, so clicking them would
+    // never actually connect (see boards.js: rewriteLinksForBoard).
     recordLiaison(realId, getBoardName() || undefined);
     recordBoard(getBoardId(), null, realId);
+    rewriteLinksForBoard(getBoardId(), realId, getBoardId());
     startTick(true);
     startHostHeartbeat();
   });

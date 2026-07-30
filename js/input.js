@@ -3,27 +3,27 @@
 import {
   state, addRect, addCircle, addHexagon, addConnector, removeById, scheduleSave, COLORS, BUTTON_COLORS,
   findById, newId, sourceOf, displayImage, displayLink, displayText, getBoardId, undo,
-} from './state.js?v=ms7chxev';
-import { screenToWorld, worldToScreen, zoomAt, panBy } from './camera.js?v=ms7chxev';
-import { dragTo, reset } from './physics.js?v=ms7chxev';
-import { pointInHex } from './geom.js?v=ms7chxev';
-import { pollConnector, stopPolling, toggleSwitch, applyConnectorProgram, refreshConnector, toggleStopwatch, resetStopwatch, setCountdownTarget } from './connector.js?v=ms7chxev';
-import { startHost, adoptHost, detachHost, refreshHostId, pushMove, pushDelete, isClient, isOwner, hostId, buildUrl, loadQR, reportCursor, shareImage, requestSwitchToggle } from './sync.js?v=ms7chxev';
-import { getUserId } from './users.js?v=ms7chxev';
-import { storeImage, resolveSrc, inlineImages, dataUrlToBlob, blobToDataUrl } from './images.js?v=ms7chxev';
-import { getAudio, putAudio } from './audio.js?v=ms7chxev';
-import { toast } from './main.js?v=ms7chxev';
-import { explodeElementCascade } from './fx.js?v=ms7chxev';
-import { genBoardId, listBoards, buildBoardUrl, recordBoard, parseBoardUrl, reservedBoardLabel, deleteBoardData } from './boards.js?v=ms7chxev';
-import { listLiaisons, removeLiaison } from './liaisons.js?v=ms7chxev';
-import { openSettings } from './settings.js?v=ms7chxev';
-import { recordVoiceMemo, toggleVoice, removeVoiceAudio } from './voice.js?v=ms7chxev';
-import { toggleDebug } from './debug.js?v=ms7chxev';
-import { youTubeId } from './yt.js?v=ms7chxev';
-import { setActiveVideo } from './video.js?v=ms7chxev';
-import { t } from './i18n.js?v=ms7chxev';
-import { openExternal } from './platform.js?v=ms7chxev';
-import { isIcsUrl } from './ics.js?v=ms7chxev';
+} from './state.js?v=ms7d04ny';
+import { screenToWorld, worldToScreen, zoomAt, panBy } from './camera.js?v=ms7d04ny';
+import { dragTo, reset } from './physics.js?v=ms7d04ny';
+import { pointInHex } from './geom.js?v=ms7d04ny';
+import { pollConnector, stopPolling, toggleSwitch, applyConnectorProgram, refreshConnector, toggleStopwatch, resetStopwatch, setCountdownTarget } from './connector.js?v=ms7d04ny';
+import { startHost, adoptHost, detachHost, refreshHostId, pushMove, pushDelete, isClient, isOwner, hostId, buildUrl, loadQR, reportCursor, shareImage, requestSwitchToggle } from './sync.js?v=ms7d04ny';
+import { getUserId } from './users.js?v=ms7d04ny';
+import { storeImage, resolveSrc, inlineImages, dataUrlToBlob, blobToDataUrl } from './images.js?v=ms7d04ny';
+import { getAudio, putAudio } from './audio.js?v=ms7d04ny';
+import { toast } from './main.js?v=ms7d04ny';
+import { explodeElementCascade } from './fx.js?v=ms7d04ny';
+import { genBoardId, listBoards, buildBoardUrl, recordBoard, rewriteLinksForBoard, parseBoardUrl, reservedBoardLabel, deleteBoardData } from './boards.js?v=ms7d04ny';
+import { listLiaisons, removeLiaison } from './liaisons.js?v=ms7d04ny';
+import { openSettings } from './settings.js?v=ms7d04ny';
+import { recordVoiceMemo, toggleVoice, removeVoiceAudio } from './voice.js?v=ms7d04ny';
+import { toggleDebug } from './debug.js?v=ms7d04ny';
+import { youTubeId } from './yt.js?v=ms7d04ny';
+import { setActiveVideo } from './video.js?v=ms7d04ny';
+import { t } from './i18n.js?v=ms7d04ny';
+import { openExternal } from './platform.js?v=ms7d04ny';
+import { isIcsUrl } from './ics.js?v=ms7d04ny';
 
 let canvas;
 let drag = null;        // { mode, id, offx, offy, startX, startY }
@@ -413,6 +413,10 @@ function finishDrag() {
         if ((bu.peer || null) !== (newPeer || null)) {
           recordBoard(bu.id, null, newPeer); // null: keeps whatever name this board already has on file
           n.link = buildBoardUrl(bu.id, newPeer);
+          // Propagates to every OTHER saved board's own link blocks pointing
+          // at this one (e.g. Home's link to it) -- otherwise only the
+          // directory's own display node here would know about the re-pair.
+          rewriteLinksForBoard(bu.id, newPeer, 'boards');
           toast(newPeer ? t('boardsView.linked', { name: newCircle.description || newPeer }) : t('boardsView.unlinked'));
         }
       }
