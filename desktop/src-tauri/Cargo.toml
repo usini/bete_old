@@ -1,6 +1,6 @@
 [package]
 name = "bete"
-version = "0.9.5"
+version = "0.9.6"
 description = "Bete - pixel-art mindmap (desktop wrapper)"
 edition = "2021"
 
