@@ -59,8 +59,17 @@ const boards = new Map();
 
 // In-memory cache of voice memos (id -> received audioRes message, resent as-is).
 // Allows sharing between clients + retrieval by a late arrival while the
-// server is running. (No disk persistence: transient binary data.)
+// server is running. (No disk persistence: transient binary data.) Bounded
+// the same way imgMem is below -- previously unbounded, so a client could
+// grow server RAM without limit just by recording (or claiming to record)
+// many distinct voice memos.
 const audioMem = new Map();
+const AUDIO_MAX = 200; // memos run bigger than the average image, so a lower cap
+function cacheAudio(id, msg) {
+  if (audioMem.has(id)) audioMem.delete(id);
+  audioMem.set(id, msg);
+  while (audioMem.size > AUDIO_MAX) audioMem.delete(audioMem.keys().next().value);
+}
 
 // In-memory cache of images (hash -> imgRes message), same principle as audio:
 // an image only transits once, then the server re-serves it to newcomers.
@@ -119,10 +128,16 @@ function loadBoards() {
   console.log(`[bete] ${boards.size} board(s) loaded: ${[...boards.keys()].join(', ') || '(none)'}`);
 }
 
+// Returns null if this would be a brand-new board past MAX_BOARDS -- caller
+// must reject the connection instead of proceeding with an unmanaged board.
+// Previously this only logged a warning and created the board anyway, so an
+// attacker who knew the peer id could keep connecting with fresh random
+// board ids forever and grow this Map without bound until the process ran
+// out of memory.
 function getBoard(id) {
   let b = boards.get(id);
   if (!b) {
-    if (boards.size >= MAX_BOARDS) { console.warn('[bete] board limit reached, ephemeral board:', id); }
+    if (boards.size >= MAX_BOARDS) { console.warn('[bete] board limit reached, refusing new board:', id); return null; }
     b = { content: { n: {}, c: {}, h: {} }, mt: {}, del: new Set(), readOnly: false, ownerToken: null, name: '', conns: [], lastSig: '', saveTimer: null };
     boards.set(id, b);
   }
@@ -226,8 +241,25 @@ function broadcastLock(b) {
   for (const c of b.conns) if (c.open) { try { c.send(payload); } catch (e) { /* */ } }
 }
 
+// Basic per-connection rate limit: a sliding count reset every second,
+// tracked directly on the connection object (like _lastSeen already is).
+// Previously there was no cap at all on message rate, so one misbehaving or
+// malicious client could burn arbitrary CPU/bandwidth on this process (and
+// on every other client in the same board, since most message types are
+// relayed). Deliberately simple -- no burst allowance, no per-message-type
+// weighting -- just enough to make a flood cheap to reject instead of free
+// to send.
+const RATE_LIMIT_PER_SEC = 50;
+function rateLimited(conn) {
+  const t = Math.floor(now() / 1000);
+  if (conn._rateWindow !== t) { conn._rateWindow = t; conn._rateCount = 0; }
+  conn._rateCount = (conn._rateCount || 0) + 1;
+  return conn._rateCount > RATE_LIMIT_PER_SEC;
+}
+
 function handleData(id, b, msg, origin) {
   if (!msg) return;
+  if (rateLimited(origin)) return; // silently drop -- no need to close the connection over a transient burst
   // Read-only board: content from a non-owner connection is ignored outright
   // (never merged, never relayed) -- mirrors the browser-hosted guard in
   // js/sync.js, but keyed on the owner token (resolveOwner) since every
@@ -260,7 +292,7 @@ function handleData(id, b, msg, origin) {
     else for (const c of b.conns) if (c !== origin && c.open) { try { c.send(msg); } catch (e) { /* */ } }
     return;
   } else if (msg.type === 'audioRes') {
-    if (msg.buf) audioMem.set(msg.id, msg); // cache + resend as-is
+    if (msg.buf) cacheAudio(msg.id, msg); // cache + resend as-is
     for (const c of b.conns) if (c !== origin && c.open) { try { c.send(msg); } catch (e) { /* */ } }
     return;
   } else if (msg.type === 'imgReq') {
@@ -382,6 +414,7 @@ function start() {
     if (p !== peer) return;
     const id = sanitizeBoard(conn.metadata && conn.metadata.board);
     const b = getBoard(id);
+    if (!b) { try { conn.close(); } catch (e) { /* */ } return; }
     conn._lastSeen = now();
     resolveOwner(id, b, conn, conn.metadata && conn.metadata.ownerToken);
     b.conns.push(conn);
