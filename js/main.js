@@ -1,27 +1,27 @@
 // Bootstrap + render loop.
-import { state, addRect, load, setSaveSuppressed, scheduleSave, newId, setBoardId, setBoardName, getBoardName, initUndoBaseline, restore, COLORS } from './state.js?v=ms8kvlur';
-import { setView } from './camera.js?v=ms8kvlur';
-import { render } from './render.js?v=ms8kvlur';
-import { step, reset } from './physics.js?v=ms8kvlur';
-import * as minimap from './minimap.js?v=ms8kvlur';
-import * as input from './input.js?v=ms8kvlur';
-import * as fx from './fx.js?v=ms8kvlur';
-import { joinOrHost, getNetMode, liaisonStatus, disconnect, getUserCount, getPresence } from './sync.js?v=ms8kvlur';
-import { recordBoard, getBoardEntry, listBoards, buildBoardUrl, parseBoardUrl, reservedBoardLabel } from './boards.js?v=ms8kvlur';
-import { TUTORIAL_FR, TUTORIAL_EN } from './tutorial.js?v=ms8kvlur';
-import { applyTheme } from './theme.js?v=ms8kvlur';
-import { initSettings, openSettings } from './settings.js?v=ms8kvlur';
-import { recordLiaison, getLiaison, listLiaisons } from './liaisons.js?v=ms8kvlur';
-import { positionVideoOverlay } from './video.js?v=ms8kvlur';
-import { toggleMic, isMicOn, toggleListen, isListenOn } from './voicechat.js?v=ms8kvlur';
-import { migrateImages } from './images.js?v=ms8kvlur';
-import { restoreAudio } from './voice.js?v=ms8kvlur';
-import { ensureTodaySnapshot } from './history.js?v=ms8kvlur';
-import { pollConnector } from './connector.js?v=ms8kvlur';
-import { t, getLang, applyStaticI18n } from './i18n.js?v=ms8kvlur';
-import { initDesktopLink, checkWebUpdate, isDesktop, getExportFolder, setExportFolder, pickExportFolder } from './platform.js?v=ms8kvlur';
-import { checkForUpdate } from './update.js?v=ms8kvlur';
-import { exportAllBoardsToPath } from './io.js?v=ms8kvlur';
+import { state, addRect, load, setSaveSuppressed, scheduleSave, newId, setBoardId, setBoardName, getBoardName, initUndoBaseline, restore, COLORS } from './state.js?v=ms8l16iz';
+import { setView } from './camera.js?v=ms8l16iz';
+import { render } from './render.js?v=ms8l16iz';
+import { step, reset } from './physics.js?v=ms8l16iz';
+import * as minimap from './minimap.js?v=ms8l16iz';
+import * as input from './input.js?v=ms8l16iz';
+import * as fx from './fx.js?v=ms8l16iz';
+import { joinOrHost, getNetMode, liaisonStatus, disconnect, getUserCount, getPresence } from './sync.js?v=ms8l16iz';
+import { recordBoard, getBoardEntry, listBoards, buildBoardUrl, parseBoardUrl, reservedBoardLabel } from './boards.js?v=ms8l16iz';
+import { TUTORIAL_FR, TUTORIAL_EN } from './tutorial.js?v=ms8l16iz';
+import { applyTheme } from './theme.js?v=ms8l16iz';
+import { initSettings, openSettings } from './settings.js?v=ms8l16iz';
+import { recordLiaison, getLiaison, listLiaisons } from './liaisons.js?v=ms8l16iz';
+import { positionVideoOverlay } from './video.js?v=ms8l16iz';
+import { toggleMic, isMicOn, toggleListen, isListenOn } from './voicechat.js?v=ms8l16iz';
+import { migrateImages } from './images.js?v=ms8l16iz';
+import { restoreAudio } from './voice.js?v=ms8l16iz';
+import { ensureTodaySnapshot } from './history.js?v=ms8l16iz';
+import { pollConnector } from './connector.js?v=ms8l16iz';
+import { t, getLang, applyStaticI18n } from './i18n.js?v=ms8l16iz';
+import { initDesktopLink, checkWebUpdate, isDesktop, getExportFolder, setExportFolder, pickExportFolder } from './platform.js?v=ms8l16iz';
+import { checkForUpdate } from './update.js?v=ms8l16iz';
+import { exportAllBoardsToPath } from './io.js?v=ms8l16iz';
 
 applyTheme(); // apply the saved theme right at startup
 applyStaticI18n(); // translate the static HTML chrome (buttons, hint, etc.)
@@ -39,13 +39,22 @@ if (isDesktop) initExportOnExit(); // no-op on the web build (tab close can't be
 // this doubles as the "pick your default folder" prompt. Cancelling the
 // picker (or the export itself failing) never blocks the close -- this is a
 // convenience backup, not a save confirmation the user has to get past.
-const WINDOW_MOD = 'https://esm.sh/@tauri-apps/api@2/window';
-async function initExportOnExit() {
+//
+// Registers via window.__TAURI__.window (tauri.conf.json: withGlobalTauri)
+// instead of the esm.sh CDN dynamic import used for the dialog/updater APIs
+// elsewhere -- those are fine to fetch lazily on first use (a user action
+// always gives them time to load), but THIS listener has to be armed before
+// the window can possibly close, and closing right after launch is exactly
+// the normal case for a quick "just checking something" session. A CDN
+// round-trip in between left a real window where the close-requested
+// listener wasn't registered yet, so the default (immediate, no export)
+// close behavior won by default -- the was the actual bug, not the export
+// logic itself (which already worked fine via the manual "test now" button).
+function initExportOnExit() {
   let win;
   try {
-    const { getCurrentWindow } = await import(WINDOW_MOD);
-    win = getCurrentWindow();
-  } catch (e) { console.error('Bete: failed to load window API', e); return; }
+    win = window.__TAURI__.window.getCurrentWindow();
+  } catch (e) { console.error('Bete: failed to get current window', e); return; }
   win.onCloseRequested(async (event) => {
     event.preventDefault();
     try {

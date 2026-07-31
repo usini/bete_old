@@ -3,27 +3,27 @@
 import {
   state, addRect, addCircle, addHexagon, addConnector, removeById, scheduleSave, COLORS, BUTTON_COLORS,
   findById, newId, sourceOf, displayImage, displayLink, displayText, getBoardId, undo,
-} from './state.js?v=ms8kvlur';
-import { screenToWorld, worldToScreen, zoomAt, panBy } from './camera.js?v=ms8kvlur';
-import { dragTo, reset } from './physics.js?v=ms8kvlur';
-import { pointInHex } from './geom.js?v=ms8kvlur';
-import { pollConnector, stopPolling, toggleSwitch, applyConnectorProgram, refreshConnector, toggleStopwatch, resetStopwatch, setCountdownTarget } from './connector.js?v=ms8kvlur';
-import { startHost, adoptHost, detachHost, refreshHostId, pushMove, pushDelete, isClient, isOwner, hostId, buildUrl, loadQR, reportCursor, shareImage, requestSwitchToggle } from './sync.js?v=ms8kvlur';
-import { getUserId } from './users.js?v=ms8kvlur';
-import { storeImage, resolveSrc, inlineImages, dataUrlToBlob, blobToDataUrl } from './images.js?v=ms8kvlur';
-import { getAudio, putAudio } from './audio.js?v=ms8kvlur';
-import { toast } from './main.js?v=ms8kvlur';
-import { explodeElementCascade } from './fx.js?v=ms8kvlur';
-import { genBoardId, listBoards, buildBoardUrl, recordBoard, rewriteLinksForBoard, parseBoardUrl, reservedBoardLabel, deleteBoardData } from './boards.js?v=ms8kvlur';
-import { listLiaisons, removeLiaison } from './liaisons.js?v=ms8kvlur';
-import { openSettings } from './settings.js?v=ms8kvlur';
-import { recordVoiceMemo, toggleVoice, removeVoiceAudio } from './voice.js?v=ms8kvlur';
-import { toggleDebug } from './debug.js?v=ms8kvlur';
-import { youTubeId } from './yt.js?v=ms8kvlur';
-import { setActiveVideo } from './video.js?v=ms8kvlur';
-import { t } from './i18n.js?v=ms8kvlur';
-import { openExternal } from './platform.js?v=ms8kvlur';
-import { isIcsUrl } from './ics.js?v=ms8kvlur';
+} from './state.js?v=ms8l16iz';
+import { screenToWorld, worldToScreen, zoomAt, panBy } from './camera.js?v=ms8l16iz';
+import { dragTo, reset } from './physics.js?v=ms8l16iz';
+import { pointInHex } from './geom.js?v=ms8l16iz';
+import { pollConnector, stopPolling, toggleSwitch, applyConnectorProgram, refreshConnector, toggleStopwatch, resetStopwatch, setCountdownTarget } from './connector.js?v=ms8l16iz';
+import { startHost, adoptHost, detachHost, refreshHostId, pushMove, pushDelete, isClient, isOwner, hostId, buildUrl, loadQR, reportCursor, shareImage, requestSwitchToggle } from './sync.js?v=ms8l16iz';
+import { getUserId } from './users.js?v=ms8l16iz';
+import { storeImage, resolveSrc, inlineImages, dataUrlToBlob, blobToDataUrl } from './images.js?v=ms8l16iz';
+import { getAudio, putAudio } from './audio.js?v=ms8l16iz';
+import { toast } from './main.js?v=ms8l16iz';
+import { explodeElementCascade } from './fx.js?v=ms8l16iz';
+import { genBoardId, listBoards, buildBoardUrl, recordBoard, rewriteLinksForBoard, parseBoardUrl, reservedBoardLabel, deleteBoardData } from './boards.js?v=ms8l16iz';
+import { listLiaisons, removeLiaison } from './liaisons.js?v=ms8l16iz';
+import { openSettings } from './settings.js?v=ms8l16iz';
+import { recordVoiceMemo, toggleVoice, removeVoiceAudio } from './voice.js?v=ms8l16iz';
+import { toggleDebug } from './debug.js?v=ms8l16iz';
+import { youTubeId } from './yt.js?v=ms8l16iz';
+import { setActiveVideo } from './video.js?v=ms8l16iz';
+import { t } from './i18n.js?v=ms8l16iz';
+import { openExternal } from './platform.js?v=ms8l16iz';
+import { isIcsUrl } from './ics.js?v=ms8l16iz';
 
 let canvas;
 let drag = null;        // { mode, id, offx, offy, startX, startY }
