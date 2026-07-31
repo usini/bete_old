@@ -6,18 +6,18 @@
 // (falls back to host priority if both sides are on the same build) -- an
 // out-of-date host (stale tab, permanent Pi host not yet redeployed) must not
 // keep clobbering a freshly-updated peer's edits forever.
-import { state, removeById, scheduleSave, getBoardId, getBoardName, setBoardName } from './state.js?v=ms8r0wxz';
-import { reset } from './physics.js?v=ms8r0wxz';
-import { explodeElementCascade } from './fx.js?v=ms8r0wxz';
-import { putAudio, getAudio, delAudio, putImage, getImage } from './audio.js?v=ms8r0wxz';
-import { onImageArrived } from './images.js?v=ms8r0wxz';
-import { getUserId, displayName } from './users.js?v=ms8r0wxz';
-import { shareOrigin } from './platform.js?v=ms8r0wxz';
-import { recordBoard, rewriteLinksForBoard, parseBoardUrl, buildBoardUrl } from './boards.js?v=ms8r0wxz';
-import { getOwnerToken, recordLiaison } from './liaisons.js?v=ms8r0wxz';
-import { pollConnector, stopPolling, toggleSwitch } from './connector.js?v=ms8r0wxz';
-import { fetchIcsLocal, resolveIcsPeerResponse, retryFailedIcs } from './ics.js?v=ms8r0wxz';
-import { refreshBoardNameUI } from './main.js?v=ms8r0wxz';
+import { state, removeById, scheduleSave, getBoardId, getBoardName, setBoardName } from './state.js?v=ms944ifx';
+import { reset } from './physics.js?v=ms944ifx';
+import { explodeElementCascade } from './fx.js?v=ms944ifx';
+import { putAudio, getAudio, delAudio, putImage, getImage } from './audio.js?v=ms944ifx';
+import { onImageArrived } from './images.js?v=ms944ifx';
+import { getUserId, displayName } from './users.js?v=ms944ifx';
+import { shareOrigin } from './platform.js?v=ms944ifx';
+import { recordBoard, rewriteLinksForBoard, parseBoardUrl, buildBoardUrl } from './boards.js?v=ms944ifx';
+import { getOwnerToken, recordLiaison } from './liaisons.js?v=ms944ifx';
+import { pollConnector, stopPolling, toggleSwitch } from './connector.js?v=ms944ifx';
+import { fetchIcsLocal, resolveIcsPeerResponse, retryFailedIcs } from './ics.js?v=ms944ifx';
+import { refreshBoardNameUI } from './main.js?v=ms944ifx';
 
 let clientRoster = []; // client side: list of users received from the host
 let lastHostMsg = 0;   // client side: timestamp of the last message received from the host
@@ -53,8 +53,15 @@ const MY_VERSION = readBuildVersion();
 // or a headless host (Pi) has confirmed our owner token belongs to this board.
 export function isOwner() { return mode === 'host' || iAmOwner; }
 
-const PEERJS_SRC = 'https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js';
-const QR_SRC = 'https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.js';
+// Vendored locally (js/vendor/) instead of fetched from a CDN at runtime --
+// same reasoning as js-yaml.min.js (connector.js): no third-party script
+// integrity to trust (a compromised unpkg/jsdelivr could otherwise inject
+// arbitrary code with full access to board content), and the app keeps
+// working if the CDN is ever unreachable. Still loaded lazily (only once a
+// liaison is actually used), so this doesn't add anything to the boot cost.
+// Update by re-downloading the pinned version's minified file by hand.
+const PEERJS_SRC = 'js/vendor/peerjs.min.js';
+const QR_SRC = 'js/vendor/qrcode.min.js';
 
 const _loaded = {};
 function loadScript(src) {

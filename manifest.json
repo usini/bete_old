@@ -1,5 +1,5 @@
 {
- "version": "ms8r0wxz",
+ "version": "ms944ifx",
  "files": [
   "index.html",
   "js/audio.js",
@@ -31,6 +31,9 @@
   "js/users.js",
   "js/vendor/js-yaml.LICENSE",
   "js/vendor/js-yaml.min.js",
+  "js/vendor/peerjs.LICENSE",
+  "js/vendor/peerjs.min.js",
+  "js/vendor/qrcode.min.js",
   "js/video.js",
   "js/voice.js",
   "js/voicechat.js",
