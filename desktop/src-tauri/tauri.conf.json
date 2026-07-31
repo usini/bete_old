@@ -29,7 +29,7 @@
   },
   "plugins": {
     "updater": {
-      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEQ2M0U4NDU4RURGQ0JGOTQKUldTVXYvenRXSVErMXZZYTJWcUJmNHc3b0ZEem1ZNDZ6eGk0dEdBM2RSRUI0SVZObUhVVEk1WHcK",
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDI4NTVBNTVGRUFFMTZBQzIKUldUQ2F1SHFYNlZWS0ZVWEpZWWM0aEN4dlA2MjloQkR5RmRDQXBKTHhMa0RhWnBKeklwb0tXZzMK",
       "endpoints": [
         "https://github.com/usini/bete/releases/latest/download/latest.json"
       ]
