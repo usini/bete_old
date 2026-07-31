@@ -52,6 +52,9 @@ const STRINGS = {
     'reconnect.refresh': '↻ Refresh the page',
     'reconnect.dismiss': 'Ignore',
 
+    'authFail.title': 'Passphrase required',
+    'authFail.body': "This board requires a passphrase to join. Ask whoever shared it with you.",
+
     'net.relay': '● RELAY (TURN)',
     'net.p2p': '● DIRECT P2P',
     'net.connecting': '● CONNECTING…',
@@ -206,6 +209,11 @@ const STRINGS = {
     'settings.forceRelay': 'Hide my IP (force relay)',
     'settings.forceRelay.hintOff': 'By default the connection goes DIRECTLY between devices (faster, nothing but the connection itself touches a third party) -- but a direct connection necessarily shows each side\'s IP to the other. Turning this on hides your IP from your peer, but ALL board content (text, images, voice) then travels through a third-party relay server instead of going straight device-to-device. Only turn this on for a link shared publicly with strangers -- between people who already know each other, there\'s no IP to hide and you\'d just be routing your data through an extra hop for nothing. Strongly discouraged otherwise.',
     'settings.forceRelay.hintOn': '🔒 Active: your IP is hidden from your peer, but ALL board content now transits through a third-party relay server (nothing is end-to-end direct anymore). Takes effect on your next connection.',
+    'settings.boardPass': 'Board passphrase',
+    'settings.boardPass.set': '🔒 A passphrase is required to join this board.',
+    'settings.boardPass.unset': 'No passphrase set -- anyone with the link/QR can join.',
+    'settings.boardPass.placeholder': 'New passphrase (leave empty to remove)',
+    'settings.boardPass.clear': 'Remove passphrase',
     'settings.homeLocked': "🔒 Home is local: not connectable (protected from being overwritten).",
     'settings.connected': 'Connected',
     'settings.disconnect.title': 'Disconnect',
@@ -298,6 +306,9 @@ const STRINGS = {
     'reconnect.loopMessage': "La liaison n'arrête pas de se déconnecter et se reconnecter. Rafraîchir la page résout généralement le problème.",
     'reconnect.refresh': '↻ Rafraîchir la page',
     'reconnect.dismiss': 'Ignorer',
+
+    'authFail.title': 'Phrase de passe requise',
+    'authFail.body': "Ce board nécessite une phrase de passe pour le rejoindre. Demande-la à la personne qui te l'a partagé.",
 
     'net.relay': '● RELAIS (TURN)',
     'net.p2p': '● P2P DIRECT',
@@ -453,6 +464,11 @@ const STRINGS = {
     'settings.forceRelay': 'Masquer mon IP (relais forcé)',
     'settings.forceRelay.hintOff': "Par défaut la connexion se fait DIRECTEMENT entre les appareils (plus rapide, rien à part la connexion elle-même ne passe par un tiers) -- mais une connexion directe montre forcément l'IP de chacun à l'autre. Activer ceci masque ton IP à ton interlocuteur, mais TOUT le contenu du board (texte, images, voix) transite alors par un serveur relais tiers au lieu d'aller directement d'appareil à appareil. N'active ça que pour un lien partagé publiquement avec des inconnus -- entre personnes qui se connaissent déjà, il n'y a pas d'IP à cacher et tu ferais juste passer tes données par un détour inutile. Fortement déconseillé sinon.",
     'settings.forceRelay.hintOn': "🔒 Activé : ton IP est masquée à ton interlocuteur, mais TOUT le contenu du board transite maintenant par un serveur relais tiers (plus rien n'est direct de bout en bout). Prend effet à ta prochaine connexion.",
+    'settings.boardPass': 'Phrase de passe du board',
+    'settings.boardPass.set': '🔒 Une phrase de passe est requise pour rejoindre ce board.',
+    'settings.boardPass.unset': "Aucune phrase de passe : n'importe qui avec le lien/QR peut rejoindre.",
+    'settings.boardPass.placeholder': 'Nouvelle phrase de passe (vide pour retirer)',
+    'settings.boardPass.clear': 'Retirer la phrase de passe',
     'settings.homeLocked': "🔒 Home est local : non connectable (protégé contre l'écrasement).",
     'settings.connected': 'Connecté',
     'settings.disconnect.title': 'Déconnecter',

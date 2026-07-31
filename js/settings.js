@@ -4,22 +4,22 @@
 // had grown into an unreadable wall of ~25 tiny buttons. The visited-boards
 // list that used to live here is gone: the built-in "boards" directory board
 // (js/main.js: loadBoardsDirectory) already is that list, one tile away.
-import { state, getBoardId, scheduleSave, load } from './state.js?v=ms94qu9w';
-import { reset } from './physics.js?v=ms94qu9w';
-import { theme, themeId_, setTheme, getTextScale, setTextScale, THEME_LIST } from './theme.js?v=ms94qu9w';
-import { listBoardHistory, updateTodaySnapshot, todayStr } from './history.js?v=ms94qu9w';
-import { buildBoardUrl, parseBoardUrl, renameBoardsPeer, rewriteLinksPeer } from './boards.js?v=ms94qu9w';
-import { listLiaisons, recordLiaison, renameLiaison, removeLiaison, changeLiaisonPeer } from './liaisons.js?v=ms94qu9w';
-import { toast } from './main.js?v=ms94qu9w';
-import { liaisonStatus, disconnect, getPresence, announceName, setBoardReadOnly, isOwner, getForceRelay, setForceRelay } from './sync.js?v=ms94qu9w';
-import { exportJSON, importJSON, exportAllBoards, importAllBoards, exportAllBoardsToPath } from './io.js?v=ms94qu9w';
-import { exportBoardHtml } from './exportHtml.js?v=ms94qu9w';
-import { getUserName, setUserName } from './users.js?v=ms94qu9w';
-import { isAlwaysOn, setAlwaysOn, listMics, getPreferredMic, setPreferredMic, isMicOn } from './voicechat.js?v=ms94qu9w';
-import { t, getLang, setLang, LANGS } from './i18n.js?v=ms94qu9w';
-import { isDesktop, getLinkMode, setLinkMode, getAppVersion, checkWebUpdate, getExportFolder, setExportFolder, pickExportFolder } from './platform.js?v=ms94qu9w';
-import { getIcsProxy, setIcsProxy } from './ics.js?v=ms94qu9w';
-import { checkForUpdate } from './update.js?v=ms94qu9w';
+import { state, getBoardId, scheduleSave, load } from './state.js?v=ms954yha';
+import { reset } from './physics.js?v=ms954yha';
+import { theme, themeId_, setTheme, getTextScale, setTextScale, THEME_LIST } from './theme.js?v=ms954yha';
+import { listBoardHistory, updateTodaySnapshot, todayStr } from './history.js?v=ms954yha';
+import { buildBoardUrl, parseBoardUrl, renameBoardsPeer, rewriteLinksPeer } from './boards.js?v=ms954yha';
+import { listLiaisons, recordLiaison, renameLiaison, removeLiaison, changeLiaisonPeer, getBoardPassHash } from './liaisons.js?v=ms954yha';
+import { toast } from './main.js?v=ms954yha';
+import { liaisonStatus, disconnect, getPresence, announceName, setBoardReadOnly, isOwner, getForceRelay, setForceRelay, setBoardPassphrase } from './sync.js?v=ms954yha';
+import { exportJSON, importJSON, exportAllBoards, importAllBoards, exportAllBoardsToPath } from './io.js?v=ms954yha';
+import { exportBoardHtml } from './exportHtml.js?v=ms954yha';
+import { getUserName, setUserName } from './users.js?v=ms954yha';
+import { isAlwaysOn, setAlwaysOn, listMics, getPreferredMic, setPreferredMic, isMicOn } from './voicechat.js?v=ms954yha';
+import { t, getLang, setLang, LANGS } from './i18n.js?v=ms954yha';
+import { isDesktop, getLinkMode, setLinkMode, getAppVersion, checkWebUpdate, getExportFolder, setExportFolder, pickExportFolder } from './platform.js?v=ms954yha';
+import { getIcsProxy, setIcsProxy } from './ics.js?v=ms954yha';
+import { checkForUpdate } from './update.js?v=ms954yha';
 
 function el(tag, cls, txt) {
   const e = document.createElement(tag);
@@ -196,6 +196,32 @@ function buildLiaisons(panel) {
     lockBtn.style.display = 'block'; lockBtn.style.width = '100%'; lockBtn.style.margin = '5px 0';
     lockBtn.addEventListener('click', () => { setBoardReadOnly(!state.readOnly); build(panel); });
     panel.appendChild(lockBtn);
+
+    // Optional board passphrase: a second secret required (besides the
+    // link/peer id itself) for a guest to actually sync -- see sync.js:
+    // setBoardPassphrase. Only a SHA-256 hash is ever stored (js/liaisons.js),
+    // so there's nothing to show back once set -- only replace or clear it,
+    // like a real password field.
+    const boardId = getBoardId();
+    panel.appendChild(el('div', 'set-label', t('settings.boardPass')));
+    panel.appendChild(el('div', 'set-sub', getBoardPassHash(boardId) ? t('settings.boardPass.set') : t('settings.boardPass.unset')));
+    const passRow = el('div', 'set-new');
+    const pin = el('input'); pin.type = 'password'; pin.placeholder = t('settings.boardPass.placeholder');
+    const pb = el('button', null, t('settings.ok'));
+    const savePass = async () => {
+      await setBoardPassphrase(boardId, pin.value.trim());
+      pin.value = '';
+      build(panel);
+    };
+    pb.addEventListener('click', savePass);
+    pin.addEventListener('keydown', (e) => { if (e.key === 'Enter') savePass(); });
+    passRow.appendChild(pin); passRow.appendChild(pb);
+    panel.appendChild(passRow);
+    if (getBoardPassHash(boardId)) {
+      const clearBtn = el('button', null, t('settings.boardPass.clear'));
+      clearBtn.addEventListener('click', async () => { await setBoardPassphrase(boardId, ''); build(panel); });
+      panel.appendChild(clearBtn);
+    }
   }
   const activePeer = new URLSearchParams(location.search).get('peer');
   const liaisons = listLiaisons();

@@ -110,6 +110,11 @@ function boardFromObj(obj) {
     readOnly: !!st.readOnly,
     ownerToken: st.ownerToken || null, // first client to say 'hello' on a fresh board claims it (see handleData)
     name: st.name || '', // learned from whichever client's sync first carried one -- see merge()
+    // Optional passphrase hash (SHA-256 hex, or null): only ever settable by
+    // an already-recognized owner (see 'setpass' in handleData below), never
+    // first-claimed like ownerToken -- otherwise anyone could "claim" the
+    // passphrase requirement by just connecting first, defeating the point.
+    passHash: st.passHash || null,
     conns: [], lastSig: '', saveTimer: null,
   };
 }
@@ -138,7 +143,7 @@ function getBoard(id) {
   let b = boards.get(id);
   if (!b) {
     if (boards.size >= MAX_BOARDS) { console.warn('[bete] board limit reached, refusing new board:', id); return null; }
-    b = { content: { n: {}, c: {}, h: {} }, mt: {}, del: new Set(), readOnly: false, ownerToken: null, name: '', conns: [], lastSig: '', saveTimer: null };
+    b = { content: { n: {}, c: {}, h: {} }, mt: {}, del: new Set(), readOnly: false, ownerToken: null, name: '', passHash: null, conns: [], lastSig: '', saveTimer: null };
     boards.set(id, b);
   }
   return b;
@@ -149,7 +154,7 @@ function scheduleSave(id, b) {
   b.saveTimer = setTimeout(() => {
     b.saveTimer = null;
     try {
-      fs.writeFileSync(path.join(BOARDS_DIR, id + '.json'), JSON.stringify({ ...b.content, mt: b.mt, del: [...b.del], readOnly: b.readOnly, ownerToken: b.ownerToken, name: b.name }));
+      fs.writeFileSync(path.join(BOARDS_DIR, id + '.json'), JSON.stringify({ ...b.content, mt: b.mt, del: [...b.del], readOnly: b.readOnly, ownerToken: b.ownerToken, name: b.name, passHash: b.passHash }));
     } catch (e) { console.error('[bete] save failed', id, e); }
   }, 1000);
 }
@@ -269,6 +274,17 @@ function handleData(id, b, msg, origin) {
   }
   if (msg.type === 'lock') {
     if (origin._owner) { b.readOnly = !!msg.readOnly; scheduleSave(id, b); broadcastLock(b); }
+    return;
+  }
+  if (msg.type === 'setpass') {
+    // Sets/clears the board's required passphrase hash -- owner-only, same
+    // guard as 'lock' above. Deliberately NOT first-claim like ownerToken:
+    // only a connection already recognized as owner (via resolveOwner) may
+    // do this, otherwise anyone could "claim" the passphrase requirement
+    // just by connecting first, defeating the whole point. Already-connected
+    // guests are left alone (same choice as js/sync.js's browser-hosted
+    // equivalent) -- this only affects future connection attempts.
+    if (origin._owner) { b.passHash = msg.hash || null; scheduleSave(id, b); }
     return;
   }
   if (msg.type === 'sync') {
@@ -417,6 +433,19 @@ function start() {
     if (!b) { try { conn.close(); } catch (e) { /* */ } return; }
     conn._lastSeen = now();
     resolveOwner(id, b, conn, conn.metadata && conn.metadata.ownerToken);
+    // Optional passphrase (see 'setpass' above): checked for EVERY connection,
+    // owner included -- the owner's own device holds the correct hash locally
+    // too (set at the same moment it set the requirement, see js/sync.js:
+    // setBoardPassphrase), so this never locks the real owner out in
+    // practice, and staying symmetric (no owner bypass) means a leaked/stolen
+    // owner token alone still can't get past a passphrase requirement.
+    if (b.passHash && (!conn.metadata || conn.metadata.passHash !== b.passHash)) {
+      conn.on('open', () => {
+        try { conn.send({ type: 'authFail' }); } catch (e) { /* */ }
+        setTimeout(() => { try { conn.close(); } catch (e) { /* */ } }, 300);
+      });
+      return;
+    }
     b.conns.push(conn);
     console.log(`[bete] client connected on "${id}" (${b.conns.length})${conn._owner ? ' [owner]' : ''}`);
     conn.on('open', () => { try { conn.send(buildPayload(id, b, conn)); } catch (e) { /* */ } });

@@ -62,6 +62,52 @@ export function getLiaison(peer) {
   return listLiaisons().find((x) => x.peer === peer) || null;
 }
 
+// Optional board passphrase (opt-in, per-board): a second secret required
+// (in addition to the link/peer id itself) for a guest to actually sync --
+// see sync.js: setBoardPassphrase for the full flow. Only the SHA-256 hash
+// is ever stored or transmitted, never the plaintext -- there's nothing to
+// leak from localStorage even if this device is compromised, at the cost of
+// the phrase itself not being recoverable/redisplayable once set (same as a
+// real password: only replace or clear it, never "show current").
+//
+// The SAME storage key is used on both sides of a connection, just with a
+// different role depending on which one this device happens to be for this
+// board: on the HOST (or the Pi's owner), it's the hash a guest's own hash
+// must match; on a GUEST device, it's the hash sent along on every connect
+// attempt. Both read/write it through getBoardPassHash/setBoardPassHash --
+// there's no ambiguity in practice since a given board id only ever plays
+// one of those roles on a given device.
+const PASS_KEY_PREFIX = 'bete:boardpass:';
+
+async function sha256Hex(text) {
+  const bytes = new TextEncoder().encode(text);
+  const digest = await crypto.subtle.digest('SHA-256', bytes);
+  return Array.from(new Uint8Array(digest), (b) => b.toString(16).padStart(2, '0')).join('');
+}
+
+export function getBoardPassHash(boardId) {
+  try { return localStorage.getItem(PASS_KEY_PREFIX + (boardId || 'home')) || null; } catch (e) { return null; }
+}
+
+// Hashes and stores a plaintext passphrase locally (empty/falsy clears the
+// requirement). Returns the resulting hash (or null if cleared), so callers
+// that also need to propagate it elsewhere (e.g. to a headless Pi host, see
+// sync.js) don't have to re-derive it.
+export async function setBoardPassHash(boardId, plaintext) {
+  const key = PASS_KEY_PREFIX + (boardId || 'home');
+  if (!plaintext) { try { localStorage.removeItem(key); } catch (e) { /* */ } return null; }
+  const hash = await sha256Hex(plaintext);
+  try { localStorage.setItem(key, hash); } catch (e) { /* */ }
+  return hash;
+}
+
+// Hashes a plaintext passphrase without storing it -- used by a guest device
+// to compute what to send on a connection attempt before it's known whether
+// that attempt will even succeed (see sync.js: connectToHost).
+export async function hashPassphrase(plaintext) {
+  return plaintext ? sha256Hex(plaintext) : null;
+}
+
 // Owner token (per board): a random secret this browser presents to a
 // headless host (e.g. Raspberry Pi, see server/bete-host.js) to prove it's
 // the board's owner there. The server adopts whichever token shows up first

@@ -1,27 +1,27 @@
 // Bootstrap + render loop.
-import { state, addRect, load, setSaveSuppressed, scheduleSave, newId, setBoardId, setBoardName, getBoardName, initUndoBaseline, restore, COLORS } from './state.js?v=ms94qu9w';
-import { setView } from './camera.js?v=ms94qu9w';
-import { render } from './render.js?v=ms94qu9w';
-import { step, reset } from './physics.js?v=ms94qu9w';
-import * as minimap from './minimap.js?v=ms94qu9w';
-import * as input from './input.js?v=ms94qu9w';
-import * as fx from './fx.js?v=ms94qu9w';
-import { joinOrHost, getNetMode, liaisonStatus, disconnect, getUserCount, getPresence } from './sync.js?v=ms94qu9w';
-import { recordBoard, getBoardEntry, listBoards, buildBoardUrl, parseBoardUrl, reservedBoardLabel } from './boards.js?v=ms94qu9w';
-import { TUTORIAL_FR, TUTORIAL_EN } from './tutorial.js?v=ms94qu9w';
-import { applyTheme } from './theme.js?v=ms94qu9w';
-import { initSettings, openSettings } from './settings.js?v=ms94qu9w';
-import { recordLiaison, getLiaison, listLiaisons } from './liaisons.js?v=ms94qu9w';
-import { positionVideoOverlay } from './video.js?v=ms94qu9w';
-import { toggleMic, isMicOn, toggleListen, isListenOn } from './voicechat.js?v=ms94qu9w';
-import { migrateImages } from './images.js?v=ms94qu9w';
-import { restoreAudio } from './voice.js?v=ms94qu9w';
-import { ensureTodaySnapshot } from './history.js?v=ms94qu9w';
-import { pollConnector } from './connector.js?v=ms94qu9w';
-import { t, getLang, applyStaticI18n } from './i18n.js?v=ms94qu9w';
-import { initDesktopLink, checkWebUpdate, isDesktop, getExportFolder, setExportFolder, pickExportFolder } from './platform.js?v=ms94qu9w';
-import { checkForUpdate } from './update.js?v=ms94qu9w';
-import { exportAllBoardsToPath } from './io.js?v=ms94qu9w';
+import { state, addRect, load, setSaveSuppressed, scheduleSave, newId, setBoardId, setBoardName, getBoardName, initUndoBaseline, restore, COLORS } from './state.js?v=ms954yha';
+import { setView } from './camera.js?v=ms954yha';
+import { render } from './render.js?v=ms954yha';
+import { step, reset } from './physics.js?v=ms954yha';
+import * as minimap from './minimap.js?v=ms954yha';
+import * as input from './input.js?v=ms954yha';
+import * as fx from './fx.js?v=ms954yha';
+import { joinOrHost, getNetMode, liaisonStatus, disconnect, getUserCount, getPresence, retryAfterAuthFail } from './sync.js?v=ms954yha';
+import { recordBoard, getBoardEntry, listBoards, buildBoardUrl, parseBoardUrl, reservedBoardLabel } from './boards.js?v=ms954yha';
+import { TUTORIAL_FR, TUTORIAL_EN } from './tutorial.js?v=ms954yha';
+import { applyTheme } from './theme.js?v=ms954yha';
+import { initSettings, openSettings } from './settings.js?v=ms954yha';
+import { recordLiaison, getLiaison, listLiaisons } from './liaisons.js?v=ms954yha';
+import { positionVideoOverlay } from './video.js?v=ms954yha';
+import { toggleMic, isMicOn, toggleListen, isListenOn } from './voicechat.js?v=ms954yha';
+import { migrateImages } from './images.js?v=ms954yha';
+import { restoreAudio } from './voice.js?v=ms954yha';
+import { ensureTodaySnapshot } from './history.js?v=ms954yha';
+import { pollConnector } from './connector.js?v=ms954yha';
+import { t, getLang, applyStaticI18n } from './i18n.js?v=ms954yha';
+import { initDesktopLink, checkWebUpdate, isDesktop, getExportFolder, setExportFolder, pickExportFolder } from './platform.js?v=ms954yha';
+import { checkForUpdate } from './update.js?v=ms954yha';
+import { exportAllBoardsToPath } from './io.js?v=ms954yha';
 
 applyTheme(); // apply the saved theme right at startup
 applyStaticI18n(); // translate the static HTML chrome (buttons, hint, etc.)
@@ -83,6 +83,38 @@ export function toast(msg, ms = 2400) {
 function showReconnectLoopPopup() {
   const el = document.getElementById('reconnectpopup');
   if (el) el.classList.remove('hidden');
+}
+
+// Shown when a liaison rejects us for a wrong/missing board passphrase (see
+// sync.js: handleData's 'authFail' case). Reuses the same dynamically-built
+// modal chrome (.recmodal/.connector-card) input.js already uses for the
+// connector YAML editor and similar prompts, since there's no static HTML
+// for this (unlike the reconnect-loop popup, this needs an actual text
+// field). Submitting stores the new passphrase locally and retries the SAME
+// connection attempt (sync.js: retryAfterAuthFail); cancelling just leaves
+// the board disconnected, same as any other failed join.
+function promptBoardPassphrase(boardId) {
+  const m = document.createElement('div');
+  m.className = 'recmodal';
+  m.innerHTML = '<div class="connector-card">'
+    + '<div class="connector-title">' + t('authFail.title') + '</div>'
+    + '<div class="connector-error" style="color: var(--ink); min-height: 0;">' + t('authFail.body') + '</div>'
+    + '<div class="connector-actions connector-actions-col">'
+    + '<input type="password" class="authfail-input">'
+    + '</div>'
+    + '<div class="connector-actions">'
+    + '<button class="connector-save">' + t('connector.save') + '</button>'
+    + '<button class="connector-cancel">' + t('connector.cancel') + '</button>'
+    + '</div></div>';
+  m.addEventListener('mousedown', (e) => e.stopPropagation());
+  m.addEventListener('touchstart', (e) => e.stopPropagation());
+  document.body.appendChild(m);
+  const inp = m.querySelector('.authfail-input');
+  inp.focus();
+  const submit = () => { const v = inp.value.trim(); m.remove(); if (v) retryAfterAuthFail(boardId, v); };
+  m.querySelector('.connector-save').addEventListener('click', submit);
+  inp.addEventListener('keydown', (e) => { if (e.key === 'Enter') submit(); });
+  m.querySelector('.connector-cancel').addEventListener('click', () => m.remove());
 }
 
 const board = document.getElementById('board');
@@ -150,6 +182,7 @@ if (!REDIRECT) {
       else if (st === 'error') toast(t('toast.unreachable'), 4000);
       else if (st === 'closed') toast(t('toast.hostDisconnected'), 4000);
       else if (st === 'loop') showReconnectLoopPopup();
+      else if (st === 'authFail') promptBoardPassphrase(boardId);
     });
   } else if (fileUrl) {
     setSaveSuppressed(true);

@@ -6,18 +6,18 @@
 // (falls back to host priority if both sides are on the same build) -- an
 // out-of-date host (stale tab, permanent Pi host not yet redeployed) must not
 // keep clobbering a freshly-updated peer's edits forever.
-import { state, removeById, scheduleSave, getBoardId, getBoardName, setBoardName } from './state.js?v=ms94qu9w';
-import { reset } from './physics.js?v=ms94qu9w';
-import { explodeElementCascade } from './fx.js?v=ms94qu9w';
-import { putAudio, getAudio, delAudio, putImage, getImage } from './audio.js?v=ms94qu9w';
-import { onImageArrived } from './images.js?v=ms94qu9w';
-import { getUserId, displayName } from './users.js?v=ms94qu9w';
-import { shareOrigin } from './platform.js?v=ms94qu9w';
-import { recordBoard, rewriteLinksForBoard, parseBoardUrl, buildBoardUrl } from './boards.js?v=ms94qu9w';
-import { getOwnerToken, recordLiaison } from './liaisons.js?v=ms94qu9w';
-import { pollConnector, stopPolling, toggleSwitch } from './connector.js?v=ms94qu9w';
-import { fetchIcsLocal, resolveIcsPeerResponse, retryFailedIcs } from './ics.js?v=ms94qu9w';
-import { refreshBoardNameUI } from './main.js?v=ms94qu9w';
+import { state, removeById, scheduleSave, getBoardId, getBoardName, setBoardName } from './state.js?v=ms954yha';
+import { reset } from './physics.js?v=ms954yha';
+import { explodeElementCascade } from './fx.js?v=ms954yha';
+import { putAudio, getAudio, delAudio, putImage, getImage } from './audio.js?v=ms954yha';
+import { onImageArrived } from './images.js?v=ms954yha';
+import { getUserId, displayName } from './users.js?v=ms954yha';
+import { shareOrigin } from './platform.js?v=ms954yha';
+import { recordBoard, rewriteLinksForBoard, parseBoardUrl, buildBoardUrl } from './boards.js?v=ms954yha';
+import { getOwnerToken, recordLiaison, getBoardPassHash, setBoardPassHash, hashPassphrase } from './liaisons.js?v=ms954yha';
+import { pollConnector, stopPolling, toggleSwitch } from './connector.js?v=ms954yha';
+import { fetchIcsLocal, resolveIcsPeerResponse, retryFailedIcs } from './ics.js?v=ms954yha';
+import { refreshBoardNameUI } from './main.js?v=ms954yha';
 
 let clientRoster = []; // client side: list of users received from the host
 let lastHostMsg = 0;   // client side: timestamp of the last message received from the host
@@ -162,6 +162,35 @@ export function setBoardReadOnly(v) {
 }
 // Host id (the one we're connected to as a client, or ours if we're hosting).
 export function hostId() { return mode === 'client' ? clientPeerId : (hostPeer && hostPeer.id) || null; }
+
+// Owner-only: sets (or clears, with a falsy plaintext) this board's required
+// passphrase. Hashes + stores it locally right away (this device now also
+// holds the hash it'll need to keep connecting/hosting past a reload) --
+// mirrors setBoardReadOnly's split above: a browser host enforces it
+// directly on its own next accept (guestPassOk), already-connected guests
+// are deliberately left alone (matches the same "takes effect on next
+// connection" choice as force-relay); a Pi-hosted board instead needs the
+// requirement told to it explicitly, since the Pi -- not this browser -- is
+// the one actually checking it on every connection attempt.
+export async function setBoardPassphrase(boardId, plaintext) {
+  const hash = await setBoardPassHash(boardId, plaintext);
+  if (mode === 'client' && iAmOwner && conns[0]) sendTo(conns[0], { type: 'setpass', hash });
+  return hash;
+}
+
+// Re-attempts a connection after an 'authFail' (see handleData), having just
+// stored a (hopefully correct) new passphrase for this board -- called by
+// the UI's passphrase prompt (main.js). Plain retry logic already lives in
+// scheduleClientRetry/joinHost/joinOrHost; this only clears the flag those
+// respect and kicks off a fresh attempt with whatever peer id we were last
+// trying, exactly like the very first join.
+export async function retryAfterAuthFail(boardId, plaintext) {
+  await setBoardPassHash(boardId, plaintext);
+  if (!clientPeerId) return;
+  authFailed = false;
+  reelectTries = 0; // this is a deliberate user-initiated retry, not a flappy-connection cycle
+  joinHost(clientPeerId, clientStatus);
+}
 
 // Liaison state for the indicator: { role:'client'|'host'|null, peer }.
 export function liaisonStatus() {
@@ -563,6 +592,18 @@ function handleData(msg, origin) {
     if (mode === 'client') state.readOnly = !!msg.readOnly; // the host is the only source of truth for this flag
     return;
   }
+  if (msg.type === 'authFail') {
+    // Sent by a host (browser or Pi) that just rejected us over a wrong/
+    // missing board passphrase -- see guestPassOk (sync.js) / the Pi's own
+    // equivalent check. Marks authFailed so the close that immediately
+    // follows this doesn't trigger the normal auto-retry loop (which would
+    // otherwise hammer the host forever with the same wrong hash); the UI
+    // (main.js) is expected to prompt for the right passphrase and call
+    // retryAfterAuthFail() with it.
+    authFailed = true;
+    clientStatus && clientStatus('authFail');
+    return;
+  }
   if (msg.type === 'sync') {
     if (mode === 'client' && msg.readOnly !== undefined) state.readOnly = !!msg.readOnly;
     // Headless host (Pi) only: tells each connection individually whether its
@@ -852,6 +893,33 @@ export async function startHost(node) {
   openHostPeer(getStableId());
 }
 
+// True if a connecting guest may proceed: either this board has no
+// passphrase requirement set (getBoardPassHash returns null, the default),
+// or the hash they sent along in their connection metadata matches ours.
+// Shared by both host-side accept points below (a fresh liaison, and the
+// host-election path used when we win a ?peer= race) -- see js/liaisons.js
+// for why a plain string-equality check on the HASH is enough (nothing
+// timing-sensitive here: this isn't verifying a login over a public
+// endpoint, just gating a WebRTC data connection that's already behind an
+// unguessable 128-bit peer id).
+function guestPassOk(conn) {
+  const required = getBoardPassHash(getBoardId());
+  if (!required) return true;
+  return !!(conn.metadata && conn.metadata.passHash === required);
+}
+
+// Rejects a guest whose passphrase didn't match: tells them why (so the UI
+// can prompt for the right one instead of just reporting "unreachable"),
+// then closes -- never added to `conns`, never sent any board content.
+// Delayed close: sending right before conn.close() can drop the message if
+// the underlying data channel hasn't actually flushed yet.
+function rejectGuest(conn) {
+  conn.on('open', () => {
+    try { conn.send({ type: 'authFail' }); } catch (e) { /* */ }
+    setTimeout(() => { try { conn.close(); } catch (e) { /* */ } }, 300);
+  });
+}
+
 function openHostPeer(id) {
   const peer = new Peer(id, peerOpts());
   hostPeer = peer;
@@ -895,6 +963,7 @@ function openHostPeer(id) {
     console.warn('Bete: peer error (host)', err);
   });
   peer.on('connection', (conn) => {
+    if (!guestPassOk(conn)) { rejectGuest(conn); return; }
     conn._lastSeen = now();
     conns.push(conn);
     if (hostNode) hostNode.status = 'connected';
@@ -962,10 +1031,12 @@ let clientPeer = null;
 let clientPeerId = null;
 let clientStatus = null;
 let clientRetry = null;
+let authFailed = false; // set by handleData on an 'authFail' message; see connectToHost's close handler
 
 export async function joinHost(peerId, onStatus) {
   clientPeerId = peerId;
   clientStatus = onStatus;
+  authFailed = false; // a fresh explicit attempt: forget any earlier rejection
   try { await loadPeer(); } catch (e) { onStatus && onStatus('error'); return; }
   mode = 'client';
   clientFirstSync = true;
@@ -981,7 +1052,7 @@ export async function joinHost(peerId, onStatus) {
 
 function connectToHost() {
   if (!clientPeer || clientPeer.destroyed) return;
-  const conn = clientPeer.connect(clientPeerId, { reliable: true, metadata: { board: getBoardId(), ownerToken: getOwnerToken(getBoardId()) } });
+  const conn = clientPeer.connect(clientPeerId, { reliable: true, metadata: { board: getBoardId(), ownerToken: getOwnerToken(getBoardId()), passHash: getBoardPassHash(getBoardId()) } });
   conns = [conn];
   clientRoster = [];
   lastHostMsg = now();
@@ -997,7 +1068,11 @@ function connectToHost() {
     handleData(msg, conn); // origin = our single host connection (needed to answer audioReq/imgReq)
     if (wasFirst) clientStatus && clientStatus('synced');
   });
-  conn.on('close', () => { clientStatus && clientStatus('closed'); scheduleClientRetry(); });
+  // A rejection (wrong/missing passphrase) always closes right after --
+  // authFailed (set in handleData) tells the close handler below to stop
+  // instead of retrying forever with the same wrong hash; retryAfterAuthFail()
+  // is the only way out once that's set (see its own comment).
+  conn.on('close', () => { clientStatus && clientStatus('closed'); if (!authFailed) scheduleClientRetry(); });
   conn.on('error', () => scheduleClientRetry());
 }
 
@@ -1007,6 +1082,7 @@ function connectToHost() {
 export async function joinOrHost(peerId, onStatus) {
   clientPeerId = peerId;
   clientStatus = onStatus;
+  authFailed = false; // a fresh explicit attempt: forget any earlier rejection
   try { await loadPeer(); } catch (e) { onStatus && onStatus('error'); return; }
   onStatus && onStatus('connecting');
   const probe = new Peer(peerId, peerOpts());
@@ -1040,6 +1116,7 @@ export async function joinOrHost(peerId, onStatus) {
 // Wires incoming connections onto a host peer (without rotating the id).
 function wireHostPeer(peer) {
   peer.on('connection', (conn) => {
+    if (!guestPassOk(conn)) { rejectGuest(conn); return; }
     conn._lastSeen = now();
     conns.push(conn);
     conn.on('open', () => {
