@@ -4,8 +4,8 @@
 // smart plug). See CLAUDE.md for the read-only vs. host distinction that
 // also applies here (a locked guest may watch a switch's state but not
 // flip it -- enforced in input.js, not in this module).
-import { scheduleSave } from './state.js?v=ms946jiz';
-import { getUserId } from './users.js?v=ms946jiz';
+import { scheduleSave } from './state.js?v=ms94qu9w';
+import { getUserId } from './users.js?v=ms94qu9w';
 
 // Vendored locally (js/vendor/js-yaml.min.js) so the app keeps working
 // offline -- no CDN fetch at runtime, unlike the PeerJS/QR script loads in

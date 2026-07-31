@@ -2,8 +2,8 @@
 // Listening by default: as long as we're in a liaison, we answer calls (we hear
 // everyone). The mic button only controls OUR emission (talking).
 // Audio does NOT go through the Pi: browser <-> browser (low latency).
-import { getPeer, getPresence, setLocalVoice, onIncomingCall } from './sync.js?v=ms946jiz';
-import { t } from './i18n.js?v=ms946jiz';
+import { getPeer, getPresence, setLocalVoice, onIncomingCall } from './sync.js?v=ms94qu9w';
+import { t } from './i18n.js?v=ms94qu9w';
 
 let micOn = false;
 let listenOn = true; // listening enabled by default

@@ -4,8 +4,8 @@
 // keeps a short reference 'idb:<hash>'. The bytes only transit ONCE per peer
 // (via sync.js: imgReq/imgRes), and a peer that already has the image never
 // re-downloads it.
-import { putImage, getImage } from './audio.js?v=ms946jiz';
-import { requestImage } from './sync.js?v=ms946jiz';
+import { putImage, getImage } from './audio.js?v=ms94qu9w';
+import { requestImage } from './sync.js?v=ms94qu9w';
 
 const els = new Map();   // ref -> HTMLImageElement (render cache, 1 per ref)
 const urls = new Map();  // hash -> objectURL (decoded blob, reused)

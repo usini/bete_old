@@ -4,22 +4,22 @@
 // had grown into an unreadable wall of ~25 tiny buttons. The visited-boards
 // list that used to live here is gone: the built-in "boards" directory board
 // (js/main.js: loadBoardsDirectory) already is that list, one tile away.
-import { state, getBoardId, scheduleSave, load } from './state.js?v=ms946jiz';
-import { reset } from './physics.js?v=ms946jiz';
-import { theme, themeId_, setTheme, getTextScale, setTextScale, THEME_LIST } from './theme.js?v=ms946jiz';
-import { listBoardHistory, updateTodaySnapshot, todayStr } from './history.js?v=ms946jiz';
-import { buildBoardUrl, parseBoardUrl, renameBoardsPeer, rewriteLinksPeer } from './boards.js?v=ms946jiz';
-import { listLiaisons, recordLiaison, renameLiaison, removeLiaison, changeLiaisonPeer } from './liaisons.js?v=ms946jiz';
-import { toast } from './main.js?v=ms946jiz';
-import { liaisonStatus, disconnect, getPresence, announceName, setBoardReadOnly, isOwner } from './sync.js?v=ms946jiz';
-import { exportJSON, importJSON, exportAllBoards, importAllBoards, exportAllBoardsToPath } from './io.js?v=ms946jiz';
-import { exportBoardHtml } from './exportHtml.js?v=ms946jiz';
-import { getUserName, setUserName } from './users.js?v=ms946jiz';
-import { isAlwaysOn, setAlwaysOn, listMics, getPreferredMic, setPreferredMic, isMicOn } from './voicechat.js?v=ms946jiz';
-import { t, getLang, setLang, LANGS } from './i18n.js?v=ms946jiz';
-import { isDesktop, getLinkMode, setLinkMode, getAppVersion, checkWebUpdate, getExportFolder, setExportFolder, pickExportFolder } from './platform.js?v=ms946jiz';
-import { getIcsProxy, setIcsProxy } from './ics.js?v=ms946jiz';
-import { checkForUpdate } from './update.js?v=ms946jiz';
+import { state, getBoardId, scheduleSave, load } from './state.js?v=ms94qu9w';
+import { reset } from './physics.js?v=ms94qu9w';
+import { theme, themeId_, setTheme, getTextScale, setTextScale, THEME_LIST } from './theme.js?v=ms94qu9w';
+import { listBoardHistory, updateTodaySnapshot, todayStr } from './history.js?v=ms94qu9w';
+import { buildBoardUrl, parseBoardUrl, renameBoardsPeer, rewriteLinksPeer } from './boards.js?v=ms94qu9w';
+import { listLiaisons, recordLiaison, renameLiaison, removeLiaison, changeLiaisonPeer } from './liaisons.js?v=ms94qu9w';
+import { toast } from './main.js?v=ms94qu9w';
+import { liaisonStatus, disconnect, getPresence, announceName, setBoardReadOnly, isOwner, getForceRelay, setForceRelay } from './sync.js?v=ms94qu9w';
+import { exportJSON, importJSON, exportAllBoards, importAllBoards, exportAllBoardsToPath } from './io.js?v=ms94qu9w';
+import { exportBoardHtml } from './exportHtml.js?v=ms94qu9w';
+import { getUserName, setUserName } from './users.js?v=ms94qu9w';
+import { isAlwaysOn, setAlwaysOn, listMics, getPreferredMic, setPreferredMic, isMicOn } from './voicechat.js?v=ms94qu9w';
+import { t, getLang, setLang, LANGS } from './i18n.js?v=ms94qu9w';
+import { isDesktop, getLinkMode, setLinkMode, getAppVersion, checkWebUpdate, getExportFolder, setExportFolder, pickExportFolder } from './platform.js?v=ms94qu9w';
+import { getIcsProxy, setIcsProxy } from './ics.js?v=ms94qu9w';
+import { checkForUpdate } from './update.js?v=ms94qu9w';
 
 function el(tag, cls, txt) {
   const e = document.createElement(tag);
@@ -160,6 +160,20 @@ function buildUser(panel) {
 // ---- Liaisons sub-panel: active connection, lock, list, join, share mode ----
 function buildLiaisons(panel) {
   subHead(panel, 'settings.liaisons');
+
+  // Privacy: force every connection through a TURN relay instead of trying
+  // direct P2P first (see sync.js: getForceRelay/setForceRelay for the full
+  // tradeoff). Per-device, not tied to any one liaison -- shown here (top of
+  // the panel, always visible) since it affects every future connection,
+  // not just the currently active one. Opt-in (off by default): the warning
+  // text is deliberately blunt, this is the wrong choice far more often than
+  // it's the right one (only makes sense for a link shared with strangers).
+  const relayOn = getForceRelay();
+  const relayBtn = el('button', 'set-theme' + (relayOn ? ' on' : ''), (relayOn ? '🔒 ' : '🛰️ ') + t('settings.forceRelay'));
+  relayBtn.style.display = 'block'; relayBtn.style.width = '100%'; relayBtn.style.margin = '5px 0';
+  relayBtn.addEventListener('click', () => { setForceRelay(!relayOn); build(panel); });
+  panel.appendChild(relayBtn);
+  panel.appendChild(el('div', 'set-sub', relayOn ? t('settings.forceRelay.hintOn') : t('settings.forceRelay.hintOff')));
 
   // Home is sanctuarized: never connected (so it can't be overwritten).
   if (getBoardId() === 'home') panel.appendChild(el('div', 'set-empty', t('settings.homeLocked')));

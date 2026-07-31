@@ -6,18 +6,18 @@
 // (falls back to host priority if both sides are on the same build) -- an
 // out-of-date host (stale tab, permanent Pi host not yet redeployed) must not
 // keep clobbering a freshly-updated peer's edits forever.
-import { state, removeById, scheduleSave, getBoardId, getBoardName, setBoardName } from './state.js?v=ms946jiz';
-import { reset } from './physics.js?v=ms946jiz';
-import { explodeElementCascade } from './fx.js?v=ms946jiz';
-import { putAudio, getAudio, delAudio, putImage, getImage } from './audio.js?v=ms946jiz';
-import { onImageArrived } from './images.js?v=ms946jiz';
-import { getUserId, displayName } from './users.js?v=ms946jiz';
-import { shareOrigin } from './platform.js?v=ms946jiz';
-import { recordBoard, rewriteLinksForBoard, parseBoardUrl, buildBoardUrl } from './boards.js?v=ms946jiz';
-import { getOwnerToken, recordLiaison } from './liaisons.js?v=ms946jiz';
-import { pollConnector, stopPolling, toggleSwitch } from './connector.js?v=ms946jiz';
-import { fetchIcsLocal, resolveIcsPeerResponse, retryFailedIcs } from './ics.js?v=ms946jiz';
-import { refreshBoardNameUI } from './main.js?v=ms946jiz';
+import { state, removeById, scheduleSave, getBoardId, getBoardName, setBoardName } from './state.js?v=ms94qu9w';
+import { reset } from './physics.js?v=ms94qu9w';
+import { explodeElementCascade } from './fx.js?v=ms94qu9w';
+import { putAudio, getAudio, delAudio, putImage, getImage } from './audio.js?v=ms94qu9w';
+import { onImageArrived } from './images.js?v=ms94qu9w';
+import { getUserId, displayName } from './users.js?v=ms94qu9w';
+import { shareOrigin } from './platform.js?v=ms94qu9w';
+import { recordBoard, rewriteLinksForBoard, parseBoardUrl, buildBoardUrl } from './boards.js?v=ms94qu9w';
+import { getOwnerToken, recordLiaison } from './liaisons.js?v=ms94qu9w';
+import { pollConnector, stopPolling, toggleSwitch } from './connector.js?v=ms94qu9w';
+import { fetchIcsLocal, resolveIcsPeerResponse, retryFailedIcs } from './ics.js?v=ms94qu9w';
+import { refreshBoardNameUI } from './main.js?v=ms94qu9w';
 
 let clientRoster = []; // client side: list of users received from the host
 let lastHostMsg = 0;   // client side: timestamp of the last message received from the host
@@ -86,6 +86,46 @@ export function buildUrl(id) {
   const b = getBoardId();
   if (b) u += '&id=' + encodeURIComponent(b); // the QR opens the SAME board as the host
   return u;
+}
+
+// ---- Privacy: force TURN relay (hides IP from the peer) ----
+// Opt-in, per-device (not per-board): by default WebRTC tries a DIRECT
+// connection first (faster, and nothing but connection setup touches a
+// third-party server) -- the tradeoff is that establishing a direct
+// connection necessarily reveals each side's IP to the other. Turning this
+// on forces every connection through a TURN relay instead: the peer never
+// sees your IP, but in exchange ALL board content (text, images, voice) now
+// transits through that third-party relay server instead of going straight
+// device-to-device. This is the right tradeoff for a board shared with
+// strangers (a public link); it's a BAD tradeoff between people who already
+// know and trust each other, since there's no IP to hide from them and
+// you'd just be routing your data through an extra hop for nothing -- the
+// Settings UI (settings.js) spells this out, this module only implements it.
+const RELAY_KEY = 'bete:forcerelay';
+let forceRelay = false;
+try { forceRelay = localStorage.getItem(RELAY_KEY) === '1'; } catch (e) { /* */ }
+export function getForceRelay() { return forceRelay; }
+export function setForceRelay(v) {
+  forceRelay = !!v;
+  try { localStorage.setItem(RELAY_KEY, forceRelay ? '1' : '0'); } catch (e) { /* */ }
+  // Takes effect on the NEXT connection (a live WebRTC session can't have its
+  // transport policy changed mid-flight) -- callers that want it immediate
+  // should prompt a reconnect, same as any other liaison setting.
+}
+
+// Same STUN/TURN list the Pi host uses (server/bete-host.js), kept in sync by
+// hand -- PeerJS's own default cloud config already includes similar public
+// servers, but iceTransportPolicy:'relay' requires us to supply a TURN
+// server explicitly (it can't fall back to PeerJS's internal default once we
+// override `config` at all).
+const ICE_SERVERS = [
+  { urls: 'stun:stun.l.google.com:19302' },
+  { urls: ['turn:eu-0.turn.peerjs.com:3478', 'turn:us-0.turn.peerjs.com:3478'], username: 'peerjs', credential: 'peerjsp' },
+];
+// Extra options passed to `new Peer(id, opts)` -- undefined (PeerJS's own
+// defaults) unless force-relay is on, so the common path is unaffected.
+function peerOpts() {
+  return forceRelay ? { config: { iceServers: ICE_SERVERS, iceTransportPolicy: 'relay' } } : undefined;
 }
 
 // ---- Sync state ----
@@ -813,7 +853,7 @@ export async function startHost(node) {
 }
 
 function openHostPeer(id) {
-  const peer = new Peer(id);
+  const peer = new Peer(id, peerOpts());
   hostPeer = peer;
   attachCallHandler(peer);
 
@@ -930,7 +970,7 @@ export async function joinHost(peerId, onStatus) {
   mode = 'client';
   clientFirstSync = true;
   onStatus && onStatus('connecting');
-  const peer = new Peer();
+  const peer = new Peer(peerOpts());
   clientPeer = peer;
   attachCallHandler(peer);
 
@@ -969,7 +1009,7 @@ export async function joinOrHost(peerId, onStatus) {
   clientStatus = onStatus;
   try { await loadPeer(); } catch (e) { onStatus && onStatus('error'); return; }
   onStatus && onStatus('connecting');
-  const probe = new Peer(peerId);
+  const probe = new Peer(peerId, peerOpts());
   attachCallHandler(probe);
   let settled = false;
   probe.on('open', () => {
