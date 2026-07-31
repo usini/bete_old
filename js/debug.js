@@ -1,7 +1,7 @@
 // Debug panel for tweaking wobble physics parameters.
 // Panel is hidden by default and can be toggled with the '²' key.
-import { wobbleCfg, WOBBLE_DEFAULTS } from './physics.js?v=ms7dp3jb';
-import { t } from './i18n.js?v=ms7dp3jb';
+import { wobbleCfg, WOBBLE_DEFAULTS } from './physics.js?v=ms8kvlur';
+import { t } from './i18n.js?v=ms8kvlur';
 
 let panel = null;
 

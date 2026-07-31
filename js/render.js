@@ -1,16 +1,16 @@
 // Board rendering: pixel grid, circles, hexagons, rectangles, neon glow, selection.
-import { state, effectiveColor, sourceOf, displayLink, DEFAULT_GREEN } from './state.js?v=ms7dp3jb';
-import { parseBoardUrl } from './boards.js?v=ms7dp3jb';
-import { view, worldToScreen } from './camera.js?v=ms7dp3jb';
-import { stretch } from './physics.js?v=ms7dp3jb';
-import { hexCorners, triCorners } from './geom.js?v=ms7dp3jb';
-import { theme, themeId_, getTextScale, nodeStyle, toneColor } from './theme.js?v=ms7dp3jb';
-import { fmtDur } from './voice.js?v=ms7dp3jb';
-import { getCursors, getPresence } from './sync.js?v=ms7dp3jb';
-import { youTubeId, ytThumb } from './yt.js?v=ms7dp3jb';
-import { getImageEl } from './images.js?v=ms7dp3jb';
-import { t, getLang } from './i18n.js?v=ms7dp3jb';
-import { isIcsUrl, calendarWeek } from './ics.js?v=ms7dp3jb';
+import { state, effectiveColor, sourceOf, displayLink, DEFAULT_GREEN } from './state.js?v=ms8kvlur';
+import { parseBoardUrl } from './boards.js?v=ms8kvlur';
+import { view, worldToScreen } from './camera.js?v=ms8kvlur';
+import { stretch } from './physics.js?v=ms8kvlur';
+import { hexCorners, triCorners } from './geom.js?v=ms8kvlur';
+import { theme, themeId_, getTextScale, nodeStyle, toneColor } from './theme.js?v=ms8kvlur';
+import { fmtDur } from './voice.js?v=ms8kvlur';
+import { getCursors, getPresence } from './sync.js?v=ms8kvlur';
+import { youTubeId, ytThumb } from './yt.js?v=ms8kvlur';
+import { getImageEl } from './images.js?v=ms8kvlur';
+import { t, getLang } from './i18n.js?v=ms8kvlur';
+import { isIcsUrl, calendarWeek } from './ics.js?v=ms8kvlur';
 
 const FONT = () => theme().font;
 const GLOW = () => theme().glow;

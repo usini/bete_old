@@ -4,22 +4,22 @@
 // had grown into an unreadable wall of ~25 tiny buttons. The visited-boards
 // list that used to live here is gone: the built-in "boards" directory board
 // (js/main.js: loadBoardsDirectory) already is that list, one tile away.
-import { state, getBoardId, scheduleSave, load } from './state.js?v=ms7dp3jb';
-import { reset } from './physics.js?v=ms7dp3jb';
-import { theme, themeId_, setTheme, getTextScale, setTextScale, THEME_LIST } from './theme.js?v=ms7dp3jb';
-import { listBoardHistory, updateTodaySnapshot, todayStr } from './history.js?v=ms7dp3jb';
-import { buildBoardUrl, parseBoardUrl, renameBoardsPeer, rewriteLinksPeer } from './boards.js?v=ms7dp3jb';
-import { listLiaisons, recordLiaison, renameLiaison, removeLiaison, changeLiaisonPeer } from './liaisons.js?v=ms7dp3jb';
-import { toast } from './main.js?v=ms7dp3jb';
-import { liaisonStatus, disconnect, getPresence, announceName, setBoardReadOnly, isOwner } from './sync.js?v=ms7dp3jb';
-import { exportJSON, importJSON, exportAllBoards, importAllBoards } from './io.js?v=ms7dp3jb';
-import { exportBoardHtml } from './exportHtml.js?v=ms7dp3jb';
-import { getUserName, setUserName } from './users.js?v=ms7dp3jb';
-import { isAlwaysOn, setAlwaysOn, listMics, getPreferredMic, setPreferredMic, isMicOn } from './voicechat.js?v=ms7dp3jb';
-import { t, getLang, setLang, LANGS } from './i18n.js?v=ms7dp3jb';
-import { isDesktop, getLinkMode, setLinkMode, getAppVersion, checkWebUpdate, getExportFolder, setExportFolder, pickExportFolder } from './platform.js?v=ms7dp3jb';
-import { getIcsProxy, setIcsProxy } from './ics.js?v=ms7dp3jb';
-import { checkForUpdate } from './update.js?v=ms7dp3jb';
+import { state, getBoardId, scheduleSave, load } from './state.js?v=ms8kvlur';
+import { reset } from './physics.js?v=ms8kvlur';
+import { theme, themeId_, setTheme, getTextScale, setTextScale, THEME_LIST } from './theme.js?v=ms8kvlur';
+import { listBoardHistory, updateTodaySnapshot, todayStr } from './history.js?v=ms8kvlur';
+import { buildBoardUrl, parseBoardUrl, renameBoardsPeer, rewriteLinksPeer } from './boards.js?v=ms8kvlur';
+import { listLiaisons, recordLiaison, renameLiaison, removeLiaison, changeLiaisonPeer } from './liaisons.js?v=ms8kvlur';
+import { toast } from './main.js?v=ms8kvlur';
+import { liaisonStatus, disconnect, getPresence, announceName, setBoardReadOnly, isOwner } from './sync.js?v=ms8kvlur';
+import { exportJSON, importJSON, exportAllBoards, importAllBoards, exportAllBoardsToPath } from './io.js?v=ms8kvlur';
+import { exportBoardHtml } from './exportHtml.js?v=ms8kvlur';
+import { getUserName, setUserName } from './users.js?v=ms8kvlur';
+import { isAlwaysOn, setAlwaysOn, listMics, getPreferredMic, setPreferredMic, isMicOn } from './voicechat.js?v=ms8kvlur';
+import { t, getLang, setLang, LANGS } from './i18n.js?v=ms8kvlur';
+import { isDesktop, getLinkMode, setLinkMode, getAppVersion, checkWebUpdate, getExportFolder, setExportFolder, pickExportFolder } from './platform.js?v=ms8kvlur';
+import { getIcsProxy, setIcsProxy } from './ics.js?v=ms8kvlur';
+import { checkForUpdate } from './update.js?v=ms8kvlur';
 
 function el(tag, cls, txt) {
   const e = document.createElement(tag);
@@ -321,6 +321,20 @@ function buildData(panel) {
       if (picked) { setExportFolder(picked); build(panel); }
     });
     panel.appendChild(dirBtn);
+    // Runs the exact same export used on exit, but without closing the app --
+    // lets you confirm it actually works (and see any error, devtools stay
+    // open) instead of only finding out at the one moment devtools closes too.
+    if (dir) {
+      const testBtn = el('button', 'set-wide', t('settings.exportOnExit.test'));
+      testBtn.addEventListener('click', async () => {
+        testBtn.disabled = true; testBtn.textContent = t('settings.checking');
+        let ok = false;
+        try { ok = await exportAllBoardsToPath(dir); } catch (e) { console.error('Bete: export test failed', e); }
+        testBtn.disabled = false; testBtn.textContent = t('settings.exportOnExit.test');
+        toast(ok ? t('settings.exportOnExit.testOk') : t('settings.exportOnExit.testFailed'));
+      });
+      panel.appendChild(testBtn);
+    }
   }
 
   panel.appendChild(el('div', 'set-label', t('settings.data')));
