@@ -89,6 +89,10 @@ https://your-instance.example/?file=https://example.com/board.json
 
 The file must be accessible over CORS (same origin, raw.githubusercontent.com, gist…). A relative path also works: `?file=boards/demo.json`.
 
+## Contributing
+
+See [CONTRIBUTING.md](CONTRIBUTING.md). MIT-licensed, see [LICENSE](LICENSE).
+
 Other URL parameters:
 
 - `?theme=pixel|classic|classic-dark|winxp` forces the theme for that view only
