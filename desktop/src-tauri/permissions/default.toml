@@ -18,7 +18,17 @@ identifier = "allow-write-export-file"
 description = "Allows writing the on-exit board export to a remembered folder"
 commands.allow = ["write_export_file"]
 
+[[permission]]
+identifier = "allow-start-lan-server"
+description = "Allows starting the LAN static server when local-network sharing is turned on"
+commands.allow = ["start_lan_server"]
+
+[[permission]]
+identifier = "allow-stop-lan-server"
+description = "Allows stopping the LAN static server when local-network sharing is turned off"
+commands.allow = ["stop_lan_server"]
+
 [[set]]
 identifier = "default"
 description = "Default permissions for Bete's own application commands"
-permissions = ["allow-check-web-update", "allow-get-lan-url", "allow-fetch-ics", "allow-write-export-file"]
+permissions = ["allow-check-web-update", "allow-get-lan-url", "allow-fetch-ics", "allow-write-export-file", "allow-start-lan-server", "allow-stop-lan-server"]

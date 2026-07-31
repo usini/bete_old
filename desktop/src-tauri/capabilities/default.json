@@ -17,6 +17,8 @@
     "allow-get-lan-url",
     "allow-fetch-ics",
     "allow-write-export-file",
+    "allow-start-lan-server",
+    "allow-stop-lan-server",
     {
       "identifier": "opener:allow-open-url",
       "allow": [

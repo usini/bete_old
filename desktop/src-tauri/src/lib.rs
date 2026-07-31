@@ -1,6 +1,7 @@
 use std::fs;
 use std::io::{Cursor, Read};
-use std::path::{Path, PathBuf};
+use std::path::{Component, Path, PathBuf};
+use std::sync::{Arc, Mutex};
 use std::thread;
 
 use tauri::Manager;
@@ -159,64 +160,130 @@ fn content_type(path: &Path) -> &'static str {
     }
 }
 
-// Minimal static file server. Two instances are spawned (see run()):
-// - one on 0.0.0.0:LAN_PORT, for other devices on the network (the "Local
-//   network" sharing mode: tauri://localhost isn't reachable by anyone but
-//   this window);
-// - one on 127.0.0.1:UI_PORT, which the main window itself always loads from
-//   instead of tauri://localhost, so check_web_update() can swap in fresh web
-//   assets and a plain page reload is enough to pick them up.
-// `resolve_dist` is re-invoked on every request (not captured once) so a
-// version flip from check_web_update() takes effect immediately.
-fn serve(bind: &str, port: u16, resolve_dist: impl Fn() -> PathBuf) {
-    let server = match tiny_http::Server::http((bind, port)) {
-        Ok(s) => s,
-        Err(e) => {
-            eprintln!("static server: failed to bind {bind}:{port}: {e}");
-            return;
+// Resolves a request path to a file UNDER `dist`, or None if it tries to
+// escape. Walks the path components and only ever descends into Normal ones:
+// any `..` (ParentDir), absolute root, or a Windows drive prefix aborts the
+// whole resolution. Since we only ever push Normal segments onto `dist`, the
+// result provably cannot leave `dist` -- this is the fix for a directory
+// traversal that let `GET /../../../<anything>` read arbitrary files off the
+// disk, and (because the LAN server binds 0.0.0.0) do so from any device on
+// the local network. Symlinks aren't a concern here: the served tree is the
+// app's own bundled/hot-updated web assets, none of which are symlinks.
+fn safe_join(dist: &Path, rel: &str) -> Option<PathBuf> {
+    let mut p = dist.to_path_buf();
+    for comp in Path::new(rel).components() {
+        match comp {
+            Component::Normal(c) => p.push(c),
+            Component::CurDir => {}
+            // ParentDir / RootDir / Prefix would (or could) escape `dist`.
+            _ => return None,
         }
-    };
-    serve_requests(server, resolve_dist);
+    }
+    Some(p)
 }
 
-fn serve_requests(server: tiny_http::Server, resolve_dist: impl Fn() -> PathBuf) {
-    for request in server.incoming_requests() {
-        let dist = resolve_dist();
-        let url_path = request.url().split('?').next().unwrap_or("/");
-        // The app is a single-page static site: any path without a real file
-        // extension (i.e. the board routes driven by ?id=/?peer= query
-        // params) falls back to index.html.
-        let rel = if url_path == "/" || !url_path.contains('.') {
-            "index.html".to_string()
-        } else {
-            url_path.trim_start_matches('/').to_string()
-        };
-        let file_path = dist.join(&rel);
-        let response = match fs::read(&file_path) {
-            Ok(bytes) => {
-                let header = tiny_http::Header::from_bytes(
-                    &b"Content-Type"[..],
-                    content_type(&file_path).as_bytes(),
-                )
-                .unwrap();
-                tiny_http::Response::new(
-                    tiny_http::StatusCode(200),
-                    vec![header],
-                    Cursor::new(bytes.clone()),
-                    Some(bytes.len()),
-                    None,
-                )
-            }
-            Err(_) => tiny_http::Response::new(
+// Serves one request out of `dist`. Used by both static servers below.
+fn handle_request(request: tiny_http::Request, dist: &Path) {
+    let url_path = request.url().split('?').next().unwrap_or("/").to_string();
+    // The app is a single-page static site: any path without a real file
+    // extension (i.e. the board routes driven by ?id=/?peer= query params)
+    // falls back to index.html.
+    let rel = if url_path == "/" || !url_path.contains('.') {
+        "index.html".to_string()
+    } else {
+        url_path.trim_start_matches('/').to_string()
+    };
+    let file_path = match safe_join(dist, &rel) {
+        Some(p) => p,
+        None => {
+            let _ = request.respond(tiny_http::Response::new(
                 tiny_http::StatusCode(404),
                 vec![],
                 Cursor::new(Vec::new()),
                 Some(0),
                 None,
-            ),
-        };
-        let _ = request.respond(response);
+            ));
+            return;
+        }
+    };
+    let response = match fs::read(&file_path) {
+        Ok(bytes) => {
+            let header = tiny_http::Header::from_bytes(
+                &b"Content-Type"[..],
+                content_type(&file_path).as_bytes(),
+            )
+            .unwrap();
+            tiny_http::Response::new(
+                tiny_http::StatusCode(200),
+                vec![header],
+                Cursor::new(bytes.clone()),
+                Some(bytes.len()),
+                None,
+            )
+        }
+        Err(_) => tiny_http::Response::new(
+            tiny_http::StatusCode(404),
+            vec![],
+            Cursor::new(Vec::new()),
+            Some(0),
+            None,
+        ),
+    };
+    let _ = request.respond(response);
+}
+
+// The 127.0.0.1:UI_PORT server the main window itself always loads from
+// (instead of tauri://localhost), so check_web_update() can swap in fresh web
+// assets and a plain page reload is enough to pick them up. `resolve_dist` is
+// re-invoked on every request (not captured once) so a version flip from
+// check_web_update() takes effect immediately.
+fn serve_requests(server: tiny_http::Server, resolve_dist: impl Fn() -> PathBuf) {
+    for request in server.incoming_requests() {
+        let dist = resolve_dist();
+        handle_request(request, &dist);
     }
+}
+
+// The LAN static server (0.0.0.0:LAN_PORT) is started ON DEMAND, only while the
+// user has "Local network" sharing turned on (js/platform.js: setLinkMode).
+// Holding the running Server here lets stop_lan_server() unblock its recv loop
+// and drop the socket -- so nothing listens on 0.0.0.0 unless sharing is
+// actually enabled, instead of the old unconditional bind-at-launch.
+struct LanServer(Mutex<Option<Arc<tiny_http::Server>>>);
+
+#[tauri::command]
+fn start_lan_server(app: tauri::AppHandle, state: tauri::State<LanServer>) -> Result<(), String> {
+    let mut guard = state.0.lock().map_err(|e| e.to_string())?;
+    if guard.is_some() {
+        return Ok(()); // already listening
+    }
+    let server = Arc::new(
+        tiny_http::Server::http(("0.0.0.0", LAN_PORT)).map_err(|e| e.to_string())?,
+    );
+    *guard = Some(server.clone());
+    let app_lan = app.clone();
+    thread::spawn(move || loop {
+        // recv() (rather than incoming_requests()) so stop_lan_server()'s
+        // unblock() makes this return Err, ending the loop and dropping the
+        // socket cleanly.
+        match server.recv() {
+            Ok(request) => {
+                let dist = dist_dir(&app_lan);
+                handle_request(request, &dist);
+            }
+            Err(_) => break,
+        }
+    });
+    Ok(())
+}
+
+#[tauri::command]
+fn stop_lan_server(state: tauri::State<LanServer>) -> Result<(), String> {
+    let mut guard = state.0.lock().map_err(|e| e.to_string())?;
+    if let Some(server) = guard.take() {
+        server.unblock(); // wakes the recv loop, which then drops its Arc
+    }
+    Ok(())
 }
 
 #[tauri::command]
@@ -299,7 +366,15 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_opener::init())
-        .invoke_handler(tauri::generate_handler![get_lan_url, check_web_update, fetch_ics, write_export_file])
+        .manage(LanServer(Mutex::new(None)))
+        .invoke_handler(tauri::generate_handler![
+            get_lan_url,
+            check_web_update,
+            fetch_ics,
+            write_export_file,
+            start_lan_server,
+            stop_lan_server
+        ])
         .setup(|app| {
             // Desktop only: the hot-web-update trick (check_web_update) needs
             // the window to load over plain HTTP from our own local server
@@ -332,8 +407,11 @@ pub fn run() {
                 });
                 let _ = rx.recv();
 
-                let app_lan = app.handle().clone();
-                thread::spawn(move || serve("0.0.0.0", LAN_PORT, move || dist_dir(&app_lan)));
+                // NB: the LAN server (0.0.0.0:LAN_PORT) is intentionally NOT
+                // started here anymore. It only binds when the user turns on
+                // "Local network" sharing (start_lan_server, driven by
+                // js/platform.js) -- so nothing listens on all interfaces by
+                // default.
 
                 let ui_url = url::Url::parse(&format!("http://127.0.0.1:{UI_PORT}/")).unwrap();
                 tauri::WebviewWindowBuilder::new(app, "main", tauri::WebviewUrl::External(ui_url))

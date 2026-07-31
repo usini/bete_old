@@ -13,6 +13,19 @@ export function setLinkMode(m) {
   if (m !== 'lan' && m !== 'internet') return;
   linkMode = m;
   try { localStorage.setItem(KEY, m); } catch (e) { /* */ }
+  // The desktop LAN static server only binds 0.0.0.0 while sharing is on --
+  // so nothing listens on every interface unless the user actually chose it
+  // (see desktop/src-tauri/src/lib.rs: start_lan_server/stop_lan_server).
+  syncLanServer();
+}
+
+// Starts/stops the desktop LAN server to match the current link mode. No-op on
+// web (no such server) and harmless if called when already in the right state
+// (the Rust side no-ops a redundant start). Fire-and-forget.
+function syncLanServer() {
+  if (!isDesktop) return;
+  const cmd = linkMode === 'lan' ? 'start_lan_server' : 'stop_lan_server';
+  try { window.__TAURI__.core.invoke(cmd).catch(() => {}); } catch (e) { /* */ }
 }
 
 // Cached "http://<lan-ip>:<port>" resolved once at boot via a Tauri command
@@ -22,6 +35,9 @@ let lanUrl = null;
 export async function initDesktopLink() {
   if (!isDesktop) return;
   try { lanUrl = await window.__TAURI__.core.invoke('get_lan_url'); } catch (e) { lanUrl = null; }
+  // If this profile already had "Local network" sharing on from a previous
+  // run, bring the LAN server back up (it no longer auto-starts on launch).
+  syncLanServer();
 }
 
 // Displayed in Settings so a user can tell which build they're actually
