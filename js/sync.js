@@ -6,18 +6,18 @@
 // (falls back to host priority if both sides are on the same build) -- an
 // out-of-date host (stale tab, permanent Pi host not yet redeployed) must not
 // keep clobbering a freshly-updated peer's edits forever.
-import { state, removeById, scheduleSave, getBoardId, getBoardName, setBoardName } from './state.js?v=ms944ifx';
-import { reset } from './physics.js?v=ms944ifx';
-import { explodeElementCascade } from './fx.js?v=ms944ifx';
-import { putAudio, getAudio, delAudio, putImage, getImage } from './audio.js?v=ms944ifx';
-import { onImageArrived } from './images.js?v=ms944ifx';
-import { getUserId, displayName } from './users.js?v=ms944ifx';
-import { shareOrigin } from './platform.js?v=ms944ifx';
-import { recordBoard, rewriteLinksForBoard, parseBoardUrl, buildBoardUrl } from './boards.js?v=ms944ifx';
-import { getOwnerToken, recordLiaison } from './liaisons.js?v=ms944ifx';
-import { pollConnector, stopPolling, toggleSwitch } from './connector.js?v=ms944ifx';
-import { fetchIcsLocal, resolveIcsPeerResponse, retryFailedIcs } from './ics.js?v=ms944ifx';
-import { refreshBoardNameUI } from './main.js?v=ms944ifx';
+import { state, removeById, scheduleSave, getBoardId, getBoardName, setBoardName } from './state.js?v=ms946jiz';
+import { reset } from './physics.js?v=ms946jiz';
+import { explodeElementCascade } from './fx.js?v=ms946jiz';
+import { putAudio, getAudio, delAudio, putImage, getImage } from './audio.js?v=ms946jiz';
+import { onImageArrived } from './images.js?v=ms946jiz';
+import { getUserId, displayName } from './users.js?v=ms946jiz';
+import { shareOrigin } from './platform.js?v=ms946jiz';
+import { recordBoard, rewriteLinksForBoard, parseBoardUrl, buildBoardUrl } from './boards.js?v=ms946jiz';
+import { getOwnerToken, recordLiaison } from './liaisons.js?v=ms946jiz';
+import { pollConnector, stopPolling, toggleSwitch } from './connector.js?v=ms946jiz';
+import { fetchIcsLocal, resolveIcsPeerResponse, retryFailedIcs } from './ics.js?v=ms946jiz';
+import { refreshBoardNameUI } from './main.js?v=ms946jiz';
 
 let clientRoster = []; // client side: list of users received from the host
 let lastHostMsg = 0;   // client side: timestamp of the last message received from the host

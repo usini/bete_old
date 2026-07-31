@@ -3,27 +3,27 @@
 import {
   state, addRect, addCircle, addHexagon, addConnector, removeById, scheduleSave, COLORS, BUTTON_COLORS,
   findById, newId, sourceOf, displayImage, displayLink, displayText, getBoardId, undo,
-} from './state.js?v=ms944ifx';
-import { screenToWorld, worldToScreen, zoomAt, panBy } from './camera.js?v=ms944ifx';
-import { dragTo, reset } from './physics.js?v=ms944ifx';
-import { pointInHex } from './geom.js?v=ms944ifx';
-import { pollConnector, stopPolling, toggleSwitch, applyConnectorProgram, refreshConnector, toggleStopwatch, resetStopwatch, setCountdownTarget } from './connector.js?v=ms944ifx';
-import { startHost, adoptHost, detachHost, refreshHostId, pushMove, pushDelete, isClient, isOwner, hostId, buildUrl, loadQR, reportCursor, shareImage, requestSwitchToggle } from './sync.js?v=ms944ifx';
-import { getUserId } from './users.js?v=ms944ifx';
-import { storeImage, resolveSrc, inlineImages, dataUrlToBlob, blobToDataUrl } from './images.js?v=ms944ifx';
-import { getAudio, putAudio } from './audio.js?v=ms944ifx';
-import { toast } from './main.js?v=ms944ifx';
-import { explodeElementCascade } from './fx.js?v=ms944ifx';
-import { genBoardId, listBoards, buildBoardUrl, recordBoard, rewriteLinksForBoard, parseBoardUrl, reservedBoardLabel, deleteBoardData } from './boards.js?v=ms944ifx';
-import { listLiaisons, removeLiaison } from './liaisons.js?v=ms944ifx';
-import { openSettings } from './settings.js?v=ms944ifx';
-import { recordVoiceMemo, toggleVoice, removeVoiceAudio } from './voice.js?v=ms944ifx';
-import { toggleDebug } from './debug.js?v=ms944ifx';
-import { youTubeId } from './yt.js?v=ms944ifx';
-import { setActiveVideo } from './video.js?v=ms944ifx';
-import { t } from './i18n.js?v=ms944ifx';
-import { openExternal } from './platform.js?v=ms944ifx';
-import { isIcsUrl } from './ics.js?v=ms944ifx';
+} from './state.js?v=ms946jiz';
+import { screenToWorld, worldToScreen, zoomAt, panBy } from './camera.js?v=ms946jiz';
+import { dragTo, reset } from './physics.js?v=ms946jiz';
+import { pointInHex } from './geom.js?v=ms946jiz';
+import { pollConnector, stopPolling, toggleSwitch, applyConnectorProgram, refreshConnector, toggleStopwatch, resetStopwatch, setCountdownTarget } from './connector.js?v=ms946jiz';
+import { startHost, adoptHost, detachHost, refreshHostId, pushMove, pushDelete, isClient, isOwner, hostId, buildUrl, loadQR, reportCursor, shareImage, requestSwitchToggle } from './sync.js?v=ms946jiz';
+import { getUserId } from './users.js?v=ms946jiz';
+import { storeImage, resolveSrc, inlineImages, dataUrlToBlob, blobToDataUrl } from './images.js?v=ms946jiz';
+import { getAudio, putAudio } from './audio.js?v=ms946jiz';
+import { toast } from './main.js?v=ms946jiz';
+import { explodeElementCascade } from './fx.js?v=ms946jiz';
+import { genBoardId, listBoards, buildBoardUrl, recordBoard, rewriteLinksForBoard, parseBoardUrl, reservedBoardLabel, deleteBoardData } from './boards.js?v=ms946jiz';
+import { listLiaisons, removeLiaison } from './liaisons.js?v=ms946jiz';
+import { openSettings } from './settings.js?v=ms946jiz';
+import { recordVoiceMemo, toggleVoice, removeVoiceAudio } from './voice.js?v=ms946jiz';
+import { toggleDebug } from './debug.js?v=ms946jiz';
+import { youTubeId } from './yt.js?v=ms946jiz';
+import { setActiveVideo } from './video.js?v=ms946jiz';
+import { t } from './i18n.js?v=ms946jiz';
+import { openExternal } from './platform.js?v=ms946jiz';
+import { isIcsUrl } from './ics.js?v=ms946jiz';
 
 let canvas;
 let drag = null;        // { mode, id, offx, offy, startX, startY }
@@ -706,9 +706,16 @@ function handleDouble(sx, sy) {
   if (r && r.kind === 'connector' && r.display === 'switch') {
     if (isLocked()) return;
     r._pressT = performance.now(); // drives the click animation (render.js), never synced
-    // Network-bridge mode: we don't have the yaml (only the creator's device
-    // does), so ask them to flip it instead of trying to fetch it ourselves.
-    if (r.bridge && r.creatorUid !== getUserId()) { requestSwitchToggle(r.id); return; }
+    // Actuation (the write side) is reserved to the creator's own device --
+    // not just in bridge mode, where that's the only device with the real
+    // yaml, but for every connector: a non-bridge connector's yaml IS synced
+    // to every peer, so without this a malicious guest could plant a
+    // connector pointing at, say, an address on someone else's LAN and have
+    // THEIR browser actually fire the request on every double-click. Reading
+    // (refreshConnector/pollConnector) stays unrestricted for everyone --
+    // only the write path is gated, same requestSwitchToggle relay this
+    // already used for bridge mode.
+    if (r.creatorUid && r.creatorUid !== getUserId()) { requestSwitchToggle(r.id); return; }
     toggleSwitch(r);
     return;
   }
