@@ -1,27 +1,27 @@
 // Bootstrap + render loop.
-import { state, addRect, load, setSaveSuppressed, scheduleSave, newId, setBoardId, setBoardName, getBoardName, initUndoBaseline, restore, COLORS } from './state.js?v=msa0jvj9';
-import { setView } from './camera.js?v=msa0jvj9';
-import { render } from './render.js?v=msa0jvj9';
-import { step, reset } from './physics.js?v=msa0jvj9';
-import * as minimap from './minimap.js?v=msa0jvj9';
-import * as input from './input.js?v=msa0jvj9';
-import * as fx from './fx.js?v=msa0jvj9';
-import { joinOrHost, getNetMode, liaisonStatus, disconnect, getUserCount, getPresence, retryAfterAuthFail } from './sync.js?v=msa0jvj9';
-import { recordBoard, getBoardEntry, listBoards, buildBoardUrl, parseBoardUrl, reservedBoardLabel } from './boards.js?v=msa0jvj9';
-import { TUTORIAL_FR, TUTORIAL_EN } from './tutorial.js?v=msa0jvj9';
-import { applyTheme } from './theme.js?v=msa0jvj9';
-import { initSettings, openSettings } from './settings.js?v=msa0jvj9';
-import { recordLiaison, getLiaison, listLiaisons } from './liaisons.js?v=msa0jvj9';
-import { positionVideoOverlay } from './video.js?v=msa0jvj9';
-import { toggleMic, isMicOn, toggleListen, isListenOn } from './voicechat.js?v=msa0jvj9';
-import { migrateImages } from './images.js?v=msa0jvj9';
-import { restoreAudio } from './voice.js?v=msa0jvj9';
-import { ensureTodaySnapshot } from './history.js?v=msa0jvj9';
-import { pollConnector } from './connector.js?v=msa0jvj9';
-import { t, getLang, applyStaticI18n } from './i18n.js?v=msa0jvj9';
-import { initDesktopLink, checkWebUpdate, isDesktop, getExportFolder, setExportFolder, pickExportFolder } from './platform.js?v=msa0jvj9';
-import { checkForUpdate } from './update.js?v=msa0jvj9';
-import { exportAllBoardsToPath } from './io.js?v=msa0jvj9';
+import { state, addRect, load, setSaveSuppressed, scheduleSave, newId, setBoardId, setBoardName, getBoardName, initUndoBaseline, restore, COLORS } from './state.js?v=msa2akt3';
+import { setView } from './camera.js?v=msa2akt3';
+import { render } from './render.js?v=msa2akt3';
+import { step, reset } from './physics.js?v=msa2akt3';
+import * as minimap from './minimap.js?v=msa2akt3';
+import * as input from './input.js?v=msa2akt3';
+import * as fx from './fx.js?v=msa2akt3';
+import { joinOrHost, getNetMode, liaisonStatus, disconnect, getUserCount, getPresence, retryAfterAuthFail } from './sync.js?v=msa2akt3';
+import { recordBoard, getBoardEntry, listBoards, buildBoardUrl, parseBoardUrl, reservedBoardLabel } from './boards.js?v=msa2akt3';
+import { TUTORIAL_FR, TUTORIAL_EN } from './tutorial.js?v=msa2akt3';
+import { applyTheme } from './theme.js?v=msa2akt3';
+import { initSettings, openSettings } from './settings.js?v=msa2akt3';
+import { recordLiaison, getLiaison, listLiaisons } from './liaisons.js?v=msa2akt3';
+import { positionVideoOverlay } from './video.js?v=msa2akt3';
+import { toggleMic, isMicOn, toggleListen, isListenOn, toggleCamera, isCameraOn, updateCameraOverlays } from './voicechat.js?v=msa2akt3';
+import { migrateImages } from './images.js?v=msa2akt3';
+import { restoreAudio } from './voice.js?v=msa2akt3';
+import { ensureTodaySnapshot } from './history.js?v=msa2akt3';
+import { pollConnector } from './connector.js?v=msa2akt3';
+import { t, getLang, applyStaticI18n } from './i18n.js?v=msa2akt3';
+import { initDesktopLink, checkWebUpdate, isDesktop, getExportFolder, setExportFolder, pickExportFolder } from './platform.js?v=msa2akt3';
+import { checkForUpdate } from './update.js?v=msa2akt3';
+import { exportAllBoardsToPath } from './io.js?v=msa2akt3';
 
 applyTheme(); // apply the saved theme right at startup
 applyStaticI18n(); // translate the static HTML chrome (buttons, hint, etc.)
@@ -395,6 +395,12 @@ if (!REDIRECT) {
     spk.addEventListener('mousedown', tog);
     spk.addEventListener('touchstart', tog);
   }
+  const camBtn = document.getElementById('camerabtn');
+  if (camBtn) {
+    const tog = async (e) => { e.preventDefault(); e.stopPropagation(); await toggleCamera(); camBtn.classList.toggle('on', isCameraOn()); };
+    camBtn.addEventListener('mousedown', tog);
+    camBtn.addEventListener('touchstart', tog);
+  }
   const rpRefresh = document.getElementById('reconnectRefresh');
   if (rpRefresh) rpRefresh.addEventListener('click', () => location.reload());
   const rpDismiss = document.getElementById('reconnectDismiss');
@@ -425,6 +431,7 @@ function loop(now) {
   updateLiaisonBadge();
   input.updateHint(); // reflects a read-only lock/unlock received from the host at any time
   positionVideoOverlay(); // realigns the inline YouTube player on its block
+  updateCameraOverlays(); // realigns every active video-chat camera block
   requestAnimationFrame(loop);
 }
 
@@ -453,6 +460,8 @@ function updateLiaisonBadge() {
   if (vb) { vb.classList.toggle('hidden', !st.role); if (!st.role) vb.classList.remove('on'); }
   const spk = document.getElementById('speakerbtn');
   if (spk) spk.classList.toggle('hidden', !st.role);
+  const camBtn = document.getElementById('camerabtn');
+  if (camBtn) { camBtn.classList.toggle('hidden', !st.role); if (!st.role) camBtn.classList.remove('on'); }
   updateSpeakers(!!st.role);
   if (sig === lastLiaison) return;
   lastLiaison = sig;

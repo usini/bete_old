@@ -1,16 +1,16 @@
 // Board rendering: pixel grid, circles, hexagons, rectangles, neon glow, selection.
-import { state, effectiveColor, sourceOf, displayLink, DEFAULT_GREEN } from './state.js?v=msa0jvj9';
-import { parseBoardUrl } from './boards.js?v=msa0jvj9';
-import { view, worldToScreen } from './camera.js?v=msa0jvj9';
-import { stretch } from './physics.js?v=msa0jvj9';
-import { hexCorners, triCorners } from './geom.js?v=msa0jvj9';
-import { theme, themeId_, getTextScale, nodeStyle, toneColor } from './theme.js?v=msa0jvj9';
-import { fmtDur } from './voice.js?v=msa0jvj9';
-import { getCursors, getPresence } from './sync.js?v=msa0jvj9';
-import { youTubeId, ytThumb } from './yt.js?v=msa0jvj9';
-import { getImageEl } from './images.js?v=msa0jvj9';
-import { t, getLang } from './i18n.js?v=msa0jvj9';
-import { isIcsUrl, calendarWeek } from './ics.js?v=msa0jvj9';
+import { state, effectiveColor, sourceOf, displayLink, DEFAULT_GREEN } from './state.js?v=msa2akt3';
+import { parseBoardUrl } from './boards.js?v=msa2akt3';
+import { view, worldToScreen } from './camera.js?v=msa2akt3';
+import { stretch } from './physics.js?v=msa2akt3';
+import { hexCorners, triCorners } from './geom.js?v=msa2akt3';
+import { theme, themeId_, getTextScale, nodeStyle, toneColor } from './theme.js?v=msa2akt3';
+import { fmtDur } from './voice.js?v=msa2akt3';
+import { getCursors, getPresence } from './sync.js?v=msa2akt3';
+import { youTubeId, ytThumb } from './yt.js?v=msa2akt3';
+import { getImageEl } from './images.js?v=msa2akt3';
+import { t, getLang } from './i18n.js?v=msa2akt3';
+import { isIcsUrl, calendarWeek } from './ics.js?v=msa2akt3';
 
 const FONT = () => theme().font;
 const GLOW = () => theme().glow;
@@ -51,6 +51,7 @@ export function render(ctx) {
     else if (n.kind === 'pancarte') drawPancarte(ctx, n, isSel(n.id), zoom);
     else if (n.kind === 'voice') drawVoice(ctx, n, isSel(n.id), zoom);
     else if (n.kind === 'connector') drawConnector(ctx, n, isSel(n.id), zoom);
+    else if (n.kind === 'camera') drawCamera(ctx, n, isSel(n.id), zoom);
     else drawRect(ctx, n, effectiveColor(n), isSel(n.id), zoom);
   }
 
@@ -313,6 +314,40 @@ function drawLiaison(ctx, n, selected, zoom) {
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
   ctx.fillText(label, 0, (qrY + qrSide + h / 2) / 2);
+  ctx.restore();
+}
+
+// Video-chat block (ephemeral, see state.js: addCameraNode / voicechat.js):
+// just a frame + name label -- the live picture itself is an HTML <video>
+// element voicechat.js overlays on top every frame (same technique as the
+// inline YouTube player, see video.js), since canvas can't cheaply show a
+// live camera feed on its own.
+function drawCamera(ctx, n, selected, zoom) {
+  const accent = theme().accent;
+  const rx = n._rx !== undefined ? n._rx : n.x;
+  const ry = n._ry !== undefined ? n._ry : n.y;
+  const p = worldToScreen(rx + n.w / 2, ry + n.h / 2);
+  const w = n.w * zoom, h = n.h * zoom;
+
+  ctx.save();
+  ctx.translate(p.x, p.y);
+  ctx.shadowColor = accent;
+  ctx.shadowBlur = (selected ? 22 : 12) * GLOW();
+  ctx.fillStyle = '#0a0c0f';
+  ctx.fillRect(-w / 2, -h / 2, w, h);
+  ctx.lineWidth = selected ? 5 : 3;
+  ctx.strokeStyle = accent;
+  ctx.strokeRect(-w / 2, -h / 2, w, h);
+  ctx.shadowBlur = 0;
+
+  const fs = clamp(9 * zoom, 6, 14);
+  ctx.fillStyle = accent;
+  ctx.shadowColor = accent;
+  ctx.shadowBlur = 6 * GLOW();
+  ctx.font = `${fs}px ${FONT()}`;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'bottom';
+  ctx.fillText(n.name || '', 0, h / 2 - 4);
   ctx.restore();
 }
 

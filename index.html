@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="css/style.css?v=msa0jvj9" />
+  <link rel="stylesheet" href="css/style.css?v=msa2akt3" />
 </head>
 <body>
   <canvas id="board"></canvas>
@@ -37,6 +37,11 @@
   <!-- Speaker button (mute/unmute listening): visible while in a liaison -->
   <button id="speakerbtn" type="button" class="hidden" data-i18n-title="button.listen.title" data-i18n-aria="button.listen.aria">
     <svg viewBox="0 0 24 24"><polygon points="4,9 8,9 13,5 13,19 8,15 4,15"/><path class="spk-on" d="M16.5 8.5a5 5 0 0 1 0 7"/><line class="spk-off" x1="16" y1="9" x2="21" y2="14"/><line class="spk-off" x1="21" y1="9" x2="16" y2="14"/></svg>
+  </button>
+
+  <!-- Camera button (video chat, up to 4 participants): visible only while in a liaison -->
+  <button id="camerabtn" type="button" class="hidden" data-i18n-title="button.camera.title" data-i18n-aria="button.camera.aria">
+    <svg viewBox="0 0 24 24"><rect x="2.5" y="6.5" width="13" height="11" rx="2"/><path d="M15.5 10.5l5-3v9l-5-3z"/></svg>
   </button>
 
   <!-- "Who's talking" banner (top center) -->
@@ -111,6 +116,6 @@
   <!-- CRT scanlines overlay -->
   <div id="crt"></div>
 
-  <script type="module" src="js/main.js?v=msa0jvj9"></script>
+  <script type="module" src="js/main.js?v=msa2akt3"></script>
 </body>
 </html>

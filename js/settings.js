@@ -4,22 +4,22 @@
 // had grown into an unreadable wall of ~25 tiny buttons. The visited-boards
 // list that used to live here is gone: the built-in "boards" directory board
 // (js/main.js: loadBoardsDirectory) already is that list, one tile away.
-import { state, getBoardId, scheduleSave, load } from './state.js?v=msa0jvj9';
-import { reset } from './physics.js?v=msa0jvj9';
-import { theme, themeId_, setTheme, getTextScale, setTextScale, THEME_LIST } from './theme.js?v=msa0jvj9';
-import { listBoardHistory, updateTodaySnapshot, todayStr } from './history.js?v=msa0jvj9';
-import { buildBoardUrl, parseBoardUrl, renameBoardsPeer, rewriteLinksPeer } from './boards.js?v=msa0jvj9';
-import { listLiaisons, recordLiaison, renameLiaison, removeLiaison, changeLiaisonPeer, getBoardPassHash } from './liaisons.js?v=msa0jvj9';
-import { toast } from './main.js?v=msa0jvj9';
-import { liaisonStatus, disconnect, getPresence, announceName, setBoardReadOnly, isOwner, getForceRelay, setForceRelay, setBoardPassphrase } from './sync.js?v=msa0jvj9';
-import { exportJSON, importJSON, exportAllBoards, importAllBoards, exportAllBoardsToPath } from './io.js?v=msa0jvj9';
-import { exportBoardHtml } from './exportHtml.js?v=msa0jvj9';
-import { getUserName, setUserName } from './users.js?v=msa0jvj9';
-import { isAlwaysOn, setAlwaysOn, listMics, getPreferredMic, setPreferredMic, isMicOn } from './voicechat.js?v=msa0jvj9';
-import { t, getLang, setLang, LANGS } from './i18n.js?v=msa0jvj9';
-import { isDesktop, getLinkMode, setLinkMode, getAppVersion, checkWebUpdate, getExportFolder, setExportFolder, pickExportFolder } from './platform.js?v=msa0jvj9';
-import { getIcsProxy, setIcsProxy } from './ics.js?v=msa0jvj9';
-import { checkForUpdate } from './update.js?v=msa0jvj9';
+import { state, getBoardId, scheduleSave, load } from './state.js?v=msa2akt3';
+import { reset } from './physics.js?v=msa2akt3';
+import { theme, themeId_, setTheme, getTextScale, setTextScale, THEME_LIST } from './theme.js?v=msa2akt3';
+import { listBoardHistory, updateTodaySnapshot, todayStr } from './history.js?v=msa2akt3';
+import { buildBoardUrl, parseBoardUrl, renameBoardsPeer, rewriteLinksPeer } from './boards.js?v=msa2akt3';
+import { listLiaisons, recordLiaison, renameLiaison, removeLiaison, changeLiaisonPeer, getBoardPassHash } from './liaisons.js?v=msa2akt3';
+import { toast } from './main.js?v=msa2akt3';
+import { liaisonStatus, disconnect, getPresence, announceName, setBoardReadOnly, isOwner, getForceRelay, setForceRelay, setBoardPassphrase } from './sync.js?v=msa2akt3';
+import { exportJSON, importJSON, exportAllBoards, importAllBoards, exportAllBoardsToPath } from './io.js?v=msa2akt3';
+import { exportBoardHtml } from './exportHtml.js?v=msa2akt3';
+import { getUserName, setUserName } from './users.js?v=msa2akt3';
+import { isAlwaysOn, setAlwaysOn, listMics, getPreferredMic, setPreferredMic, isMicOn } from './voicechat.js?v=msa2akt3';
+import { t, getLang, setLang, LANGS } from './i18n.js?v=msa2akt3';
+import { isDesktop, getLinkMode, setLinkMode, getAppVersion, checkWebUpdate, getExportFolder, setExportFolder, pickExportFolder } from './platform.js?v=msa2akt3';
+import { getIcsProxy, setIcsProxy } from './ics.js?v=msa2akt3';
+import { checkForUpdate } from './update.js?v=msa2akt3';
 
 function el(tag, cls, txt) {
   const e = document.createElement(tag);

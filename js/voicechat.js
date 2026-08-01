@@ -1,9 +1,21 @@
-// Live voice chat in a P2P mesh via PeerJS MediaConnection.
+// Live voice AND video chat in a P2P mesh via PeerJS MediaConnection.
 // Listening by default: as long as we're in a liaison, we answer calls (we hear
-// everyone). The mic button only controls OUR emission (talking).
-// Audio does NOT go through the Pi: browser <-> browser (low latency).
-import { getPeer, getPresence, setLocalVoice, onIncomingCall } from './sync.js?v=msa0jvj9';
-import { t } from './i18n.js?v=msa0jvj9';
+// everyone). The mic/camera buttons only control OUR OWN emission (talking/showing).
+// Neither goes through the Pi: browser <-> browser (low latency).
+//
+// Video piggybacks on the SAME mesh connection as audio (one RTCPeerConnection
+// per pair, not two) -- every call always carries both an audio track (real
+// mic or a silent one) and a video track (real camera or a blank one, see
+// blankVideo()) from the very start, so toggling the mic or camera later is
+// just replaceTrack() on an already-negotiated sender, never a renegotiation.
+// Whether a peer's video is actually worth DISPLAYING (as opposed to just a
+// blank feed we're ignoring) is driven entirely by presence (`camera: true`),
+// not by inspecting track content -- see syncCameraBlocks().
+import { getPeer, getPresence, setLocalVoice, setLocalCamera, onIncomingCall } from './sync.js?v=msa2akt3';
+import { state, addCameraNode, removeById } from './state.js?v=msa2akt3';
+import { reset } from './physics.js?v=msa2akt3';
+import { worldToScreen } from './camera.js?v=msa2akt3';
+import { t } from './i18n.js?v=msa2akt3';
 
 let micOn = false;
 let listenOn = true; // listening enabled by default
@@ -11,7 +23,18 @@ let micStream = null;
 let silentStream = null;
 let _ac = null;
 let wakeLock = null;
-const calls = {}; // remotePeerId -> { conn, audio }
+const calls = {}; // remotePeerId -> { conn, audio, stream }
+
+// ---- Camera (video chat) ----
+const MAX_CAMERAS = 4; // total participants showing video at once, including self
+let cameraOn = false;
+let cameraStream = null;
+let blankVideoStream = null;
+let localCameraNodeId = null;
+const localVideoEl = document.createElement('video'); // our own preview, muted (avoid echo)
+localVideoEl.autoplay = true; localVideoEl.playsInline = true; localVideoEl.muted = true;
+const remoteVideo = {}; // remotePeerId -> { nodeId, el: <video> }
+const dismissedCamera = new Set(); // remotePeerId whose block was manually closed -- see dismissRemoteCamera
 
 // "Always On" (mobile): on phones, the screen locking often suspends the
 // mic/connection. This mode requests a Wake Lock (screen kept on while the
@@ -108,7 +131,29 @@ function silent() {
   } catch (e) { silentStream = new MediaStream(); }
   return silentStream;
 }
-function outStream() { return (micOn && micStream) ? micStream : silent(); }
+// Blank video track (a static black frame) to fill the video slot when the
+// camera is off -- same idea as silent() for audio: every call always sends
+// both an audio AND a video track from the start, so later turning the mic
+// or camera on/off is just replaceTrack(), never a renegotiation.
+function blankVideo() {
+  if (blankVideoStream) return blankVideoStream;
+  try {
+    const c = document.createElement('canvas');
+    c.width = 2; c.height = 2;
+    c.getContext('2d').fillRect(0, 0, 2, 2);
+    blankVideoStream = c.captureStream(1); // 1 fps: it never changes, no need for more
+  } catch (e) { blankVideoStream = new MediaStream(); }
+  return blankVideoStream;
+}
+
+// The combined audio+video stream we currently send to every peer: real mic
+// or silence, real camera or a blank frame.
+function outStream() {
+  const audio = (micOn && micStream) ? micStream.getAudioTracks()[0] : silent().getAudioTracks()[0];
+  const video = (cameraOn && cameraStream) ? cameraStream.getVideoTracks()[0] : blankVideo().getVideoTracks()[0];
+  const tracks = [audio, video].filter(Boolean);
+  return new MediaStream(tracks);
+}
 
 // Enable / mute OUR mic (emission). Listening always stays active.
 export async function toggleMic() {
@@ -116,7 +161,7 @@ export async function toggleMic() {
     micOn = false; setLocalVoice(false);
     releaseWakeLock();
     stopMicStream();
-    replaceOutgoing(silent().getAudioTracks()[0]);
+    replaceOutgoingTrack('audio', silent().getAudioTracks()[0]);
     return false;
   }
   try { micStream = await acquireStream(); }
@@ -124,7 +169,7 @@ export async function toggleMic() {
   attachEndedWatch(micStream);
   micOn = true; setLocalVoice(true);
   acquireWakeLock();
-  replaceOutgoing(micStream.getAudioTracks()[0]);
+  replaceOutgoingTrack('audio', micStream.getAudioTracks()[0]);
   reconcile(); // connects to everyone so they can hear us
   return true;
 }
@@ -138,7 +183,7 @@ function stopMicStream() {
 function attachEndedWatch(stream) {
   const track = stream.getAudioTracks()[0];
   if (!track) return;
-  track.onended = () => { if (micOn && stream === micStream) { if (alwaysOn) restartMic(); else { micOn = false; setLocalVoice(false); replaceOutgoing(silent().getAudioTracks()[0]); } } };
+  track.onended = () => { if (micOn && stream === micStream) { if (alwaysOn) restartMic(); else { micOn = false; setLocalVoice(false); replaceOutgoingTrack('audio', silent().getAudioTracks()[0]); } } };
 }
 
 // Restarts the mic stream without cutting it in the UI (used by Always On + device change).
@@ -147,25 +192,30 @@ async function restartMic() {
   try { micStream = await acquireStream(); }
   catch (e) { micStream = null; return; } // will retry on the next trigger (visibilitychange, etc.)
   attachEndedWatch(micStream);
-  replaceOutgoing(micStream.getAudioTracks()[0]);
+  replaceOutgoingTrack('audio', micStream.getAudioTracks()[0]);
 }
 // Retries if the resume failed at the moment of 'ended' (e.g. mic momentarily
 // unavailable during a phone call) and we come back to the foreground.
 document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible' && micOn && alwaysOn && !micStream) restartMic(); });
 
-// Replaces the outgoing track on all active connections (without reopening).
-function replaceOutgoing(track) {
+// Replaces the outgoing audio or video track on all active connections
+// (without reopening/renegotiating -- see outStream()'s comment on why every
+// sender already has both kinds of track from the start).
+function replaceOutgoingTrack(kind, track) {
   Object.values(calls).forEach((c) => {
     try {
       const pc = c.conn && c.conn.peerConnection;
-      const s = pc && pc.getSenders().find((x) => x.track && x.track.kind === 'audio');
+      const s = pc && pc.getSenders().find((x) => x.track && x.track.kind === kind);
       if (s && track) s.replaceTrack(track);
     } catch (e) { /* */ }
   });
 }
 
-// Connects based on who's talking: calls a peer if WE are talking or if THEY are.
-// (Total silence => no connection. We hear everyone as soon as they start talking.)
+// Connects based on who's talking/showing video: calls a peer if WE are
+// talking or showing our camera, or if THEY are (or if we're listening and
+// they're talking -- watching someone's camera, unlike listening, has no
+// separate opt-out toggle, we always want to see it once someone's showing).
+// (Total silence/stillness => no connection.)
 function reconcile() {
   const peer = getPeer();
   const myId = peer && peer.id;
@@ -173,8 +223,7 @@ function reconcile() {
   const want = {};
   getPresence().forEach((u) => {
     if (u.me || !u.peerId) return;
-    // We connect if WE are talking (to be heard), or if we're listening to someone talking.
-    if (!micOn && !(listenOn && u.voice)) return;
+    if (!micOn && !cameraOn && !(listenOn && u.voice) && !u.camera) return;
     want[u.peerId] = 1;
     if (calls[u.peerId]) return;
     if (myId < u.peerId) { // the smallest id initiates (anti-duplicate)
@@ -182,19 +231,22 @@ function reconcile() {
     }
   });
   Object.keys(calls).forEach((id) => { if (!want[id]) dropCall(id); });
+  syncCameraBlocks();
 }
 setInterval(reconcile, 1500);
 
-// Incoming call: we ALWAYS answer (listening by default), with our current track.
+// Incoming call: we answer as long as we want SOMETHING from this mesh
+// (talking, showing our camera, or listening) -- refusing only cuts the
+// rare case where every one of those is off.
 onIncomingCall((conn) => {
   if (calls[conn.peer]) { try { conn.close(); } catch (e) { /* */ } return; } // glare
-  if (!micOn && !listenOn) { try { conn.close(); } catch (e) { /* */ } return; } // neither talking nor listening
+  if (!micOn && !cameraOn && !listenOn) { try { conn.close(); } catch (e) { /* */ } return; }
   try { conn.answer(outStream()); } catch (e) { /* */ }
   attachCall(conn.peer, conn);
 });
 
 function attachCall(remoteId, conn) {
-  calls[remoteId] = { conn, audio: null };
+  calls[remoteId] = { conn, audio: null, stream: null };
   conn.on('stream', (stream) => playRemote(remoteId, stream));
   conn.on('close', () => dropCall(remoteId));
   conn.on('error', () => dropCall(remoteId));
@@ -207,6 +259,10 @@ function playRemote(remoteId, stream) {
   c.audio.muted = !listenOn;
   c.audio.srcObject = stream;
   c.audio.play().catch(() => {});
+  // Kept separately from c.audio (which stays responsible for playback/mute)
+  // -- syncCameraBlocks() feeds this same stream into a <video> element too,
+  // muted, purely for the picture, whenever this peer's camera block exists.
+  c.stream = stream;
 }
 
 function dropCall(remoteId) {
@@ -215,4 +271,120 @@ function dropCall(remoteId) {
   try { c.conn && c.conn.close(); } catch (e) { /* */ }
   if (c.audio) c.audio.srcObject = null;
   delete calls[remoteId];
+  removeRemoteCameraBlock(remoteId);
+}
+
+// ---- Camera (video chat) ----
+export function isCameraOn() { return cameraOn; }
+
+// Enable / disable OUR camera (emission). Creates/removes our own ephemeral
+// preview block (see state.js: addCameraNode) -- deleting that block by hand
+// (Delete key, radial menu) has the exact same effect, see input.js:
+// removeElement's 'camera' case, which calls back into this function.
+export async function toggleCamera() {
+  if (cameraOn) {
+    cameraOn = false; setLocalCamera(false);
+    stopCameraStream();
+    replaceOutgoingTrack('video', blankVideo().getVideoTracks()[0]);
+    if (localCameraNodeId) { removeById(localCameraNodeId); localCameraNodeId = null; }
+    localVideoEl.srcObject = null;
+    reconcile(); // may drop connections nobody wants anymore
+    return false;
+  }
+  // Simple, sender-side cap: refuse to join if 4 people are already showing
+  // video (counting ourselves once we're on). Each device enforces this the
+  // same way, so the total across the mesh never exceeds MAX_CAMERAS.
+  if (getPresence().filter((u) => u.camera).length >= MAX_CAMERAS) {
+    alert(t('alert.cameraMaxReached', { n: MAX_CAMERAS }));
+    return false;
+  }
+  try { cameraStream = await navigator.mediaDevices.getUserMedia({ video: true }); }
+  catch (e) { alert(t('alert.cameraUnavailable')); return false; }
+  cameraOn = true; setLocalCamera(true);
+  const n = addCameraNode(state.camera.x - 110, state.camera.y - 82, 'local', t('liaison.you'));
+  reset(n);
+  localCameraNodeId = n.id;
+  localVideoEl.srcObject = cameraStream;
+  localVideoEl.play().catch(() => {});
+  replaceOutgoingTrack('video', cameraStream.getVideoTracks()[0]);
+  reconcile(); // connects to everyone so they can see us
+  return true;
+}
+
+function stopCameraStream() {
+  if (cameraStream) { cameraStream.getTracks().forEach((tr) => tr.stop()); cameraStream = null; }
+}
+
+// Closing a remote participant's camera block by hand doesn't affect their
+// actual stream -- it just stops US from displaying it, until their camera
+// cycles off then on again (tracked per remote id, cleared in
+// syncCameraBlocks() the moment presence reports camera:false for them).
+export function dismissRemoteCamera(remotePeerId) {
+  dismissedCamera.add(remotePeerId);
+  removeRemoteCameraBlock(remotePeerId);
+}
+
+function removeRemoteCameraBlock(remotePeerId) {
+  const rv = remoteVideo[remotePeerId];
+  if (!rv) return;
+  rv.el.srcObject = null;
+  removeById(rv.nodeId);
+  delete remoteVideo[remotePeerId];
+}
+
+// Called from reconcile() (every 1.5s): creates/removes each remote
+// participant's ephemeral camera block to match presence. Connection
+// lifecycle (calls{}) is handled separately above -- this only decides
+// whether an EXISTING stream's video track is worth showing.
+function syncCameraBlocks() {
+  const present = new Set();
+  getPresence().forEach((u) => {
+    if (u.me || !u.peerId) return;
+    present.add(u.peerId);
+    if (!u.camera) { dismissedCamera.delete(u.peerId); removeRemoteCameraBlock(u.peerId); return; }
+    if (dismissedCamera.has(u.peerId)) return; // manually closed, waits for their camera to cycle
+    let rv = remoteVideo[u.peerId];
+    if (!rv) {
+      const n = addCameraNode(state.camera.x + 110 * (Object.keys(remoteVideo).length + 1), state.camera.y - 82, u.peerId, u.name || t('liaison.guest'));
+      reset(n);
+      const el = document.createElement('video');
+      el.autoplay = true; el.playsInline = true; el.muted = true; // audio already plays via calls[].audio
+      rv = remoteVideo[u.peerId] = { nodeId: n.id, el };
+    }
+    const stream = calls[u.peerId] && calls[u.peerId].stream;
+    if (stream && rv.el.srcObject !== stream) { rv.el.srcObject = stream; rv.el.play().catch(() => {}); }
+  });
+  // Cleans up anyone no longer present at all (disconnected).
+  Object.keys(remoteVideo).forEach((id) => { if (!present.has(id)) { removeRemoteCameraBlock(id); dismissedCamera.delete(id); } });
+}
+
+// Positions every active <video> overlay (our own preview + each visible
+// remote camera block) over its node -- called every frame from main.js's
+// render loop, same technique as video.js: positionVideoOverlay (an inline
+// YouTube player), just generalized to several simultaneous elements keyed
+// by node id instead of a single active one.
+export function updateCameraOverlays() {
+  positionOverlay(localCameraNodeId, localVideoEl);
+  Object.values(remoteVideo).forEach((rv) => positionOverlay(rv.nodeId, rv.el));
+}
+
+function positionOverlay(nodeId, el) {
+  const n = nodeId && state.nodes.find((x) => x.id === nodeId);
+  if (!n) { if (el.parentNode) el.remove(); return; }
+  if (!el.parentNode) document.body.appendChild(el);
+  el.className = 'camera-overlay' + (el === localVideoEl ? ' camera-mirror' : '');
+  const rx = n._rx !== undefined ? n._rx : n.x;
+  const ry = n._ry !== undefined ? n._ry : n.y;
+  const z = state.camera.zoom;
+  const p = worldToScreen(rx, ry);
+  const w = n.w * z, h = n.h * z;
+  if (p.x + w < -20 || p.y + h < -20 || p.x > window.innerWidth + 20 || p.y > window.innerHeight + 20) {
+    el.style.display = 'none';
+  } else {
+    el.style.display = 'block';
+    el.style.left = p.x + 'px';
+    el.style.top = p.y + 'px';
+    el.style.width = w + 'px';
+    el.style.height = h + 'px';
+  }
 }

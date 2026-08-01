@@ -6,33 +6,35 @@
 // (falls back to host priority if both sides are on the same build) -- an
 // out-of-date host (stale tab, permanent Pi host not yet redeployed) must not
 // keep clobbering a freshly-updated peer's edits forever.
-import { state, removeById, scheduleSave, getBoardId, getBoardName, setBoardName } from './state.js?v=msa0jvj9';
-import { reset } from './physics.js?v=msa0jvj9';
-import { explodeElementCascade } from './fx.js?v=msa0jvj9';
-import { putAudio, getAudio, delAudio, putImage, getImage } from './audio.js?v=msa0jvj9';
-import { onImageArrived } from './images.js?v=msa0jvj9';
-import { getUserId, displayName } from './users.js?v=msa0jvj9';
-import { shareOrigin } from './platform.js?v=msa0jvj9';
-import { recordBoard, rewriteLinksForBoard, parseBoardUrl, buildBoardUrl } from './boards.js?v=msa0jvj9';
-import { getOwnerToken, recordLiaison, getBoardPassHash, setBoardPassHash, hashPassphrase } from './liaisons.js?v=msa0jvj9';
-import { pollConnector, stopPolling, toggleSwitch } from './connector.js?v=msa0jvj9';
-import { fetchIcsLocal, resolveIcsPeerResponse, retryFailedIcs } from './ics.js?v=msa0jvj9';
-import { refreshBoardNameUI } from './main.js?v=msa0jvj9';
+import { state, removeById, scheduleSave, getBoardId, getBoardName, setBoardName } from './state.js?v=msa2akt3';
+import { reset } from './physics.js?v=msa2akt3';
+import { explodeElementCascade } from './fx.js?v=msa2akt3';
+import { putAudio, getAudio, delAudio, putImage, getImage } from './audio.js?v=msa2akt3';
+import { onImageArrived } from './images.js?v=msa2akt3';
+import { getUserId, displayName } from './users.js?v=msa2akt3';
+import { shareOrigin } from './platform.js?v=msa2akt3';
+import { recordBoard, rewriteLinksForBoard, parseBoardUrl, buildBoardUrl } from './boards.js?v=msa2akt3';
+import { getOwnerToken, recordLiaison, getBoardPassHash, setBoardPassHash, hashPassphrase } from './liaisons.js?v=msa2akt3';
+import { pollConnector, stopPolling, toggleSwitch } from './connector.js?v=msa2akt3';
+import { fetchIcsLocal, resolveIcsPeerResponse, retryFailedIcs } from './ics.js?v=msa2akt3';
+import { refreshBoardNameUI } from './main.js?v=msa2akt3';
 
 let clientRoster = []; // client side: list of users received from the host
 let lastHostMsg = 0;   // client side: timestamp of the last message received from the host
 let hostHb = null;     // host side: heartbeat timer
 let cursors = {};      // uid -> { name, x, y, t }: other users' cursors
 let localVoice = false; // is our mic active (voice chat)?
+let localCamera = false; // is our camera active (video chat) -- see voicechat.js
 let incomingCb = null;  // callback for incoming media calls (voicechat)
 let iAmOwner = false;   // client side: has a headless host (Pi) confirmed our owner token?
 
 // Current local PeerJS peer (host or client) — used for audio calls.
 export function getPeer() { return mode === 'host' ? hostPeer : clientPeer; }
 export function setLocalVoice(v) { localVoice = !!v; announceName(); }
+export function setLocalCamera(v) { localCamera = !!v; announceName(); }
 export function onIncomingCall(cb) { incomingCb = cb; }
 function attachCallHandler(peer) { if (peer) peer.on('call', (c) => { if (incomingCb) incomingCb(c); }); }
-function helloMsg() { return { type: 'hello', uid: getUserId(), name: displayName(), peerId: (clientPeer && clientPeer.id) || null, voice: localVoice, ownerToken: getOwnerToken(getBoardId()), ver: MY_VERSION }; }
+function helloMsg() { return { type: 'hello', uid: getUserId(), name: displayName(), peerId: (clientPeer && clientPeer.id) || null, voice: localVoice, camera: localCamera, ownerToken: getOwnerToken(getBoardId()), ver: MY_VERSION }; }
 
 // Our own build's cache-bust stamp (Date.now().toString(36) at the last
 // `node cachebust.mjs` run -- see cachebust.mjs), read straight off the
@@ -202,8 +204,8 @@ export function liaisonStatus() {
 // ---- Presence (list of connected users) ----
 export function getPresence() {
   if (mode === 'host') {
-    const list = [{ uid: getUserId(), name: displayName(), host: true, me: true, peerId: (hostPeer && hostPeer.id) || null, voice: localVoice }];
-    conns.forEach((c) => { if (c._uid) list.push({ uid: c._uid, name: c._name || '', host: false, me: false, peerId: c._peerId || null, voice: !!c._voice }); });
+    const list = [{ uid: getUserId(), name: displayName(), host: true, me: true, peerId: (hostPeer && hostPeer.id) || null, voice: localVoice, camera: localCamera }];
+    conns.forEach((c) => { if (c._uid) list.push({ uid: c._uid, name: c._name || '', host: false, me: false, peerId: c._peerId || null, voice: !!c._voice, camera: !!c._camera }); });
     return list;
   }
   if (mode === 'client') return clientRoster.map((u) => ({ ...u, me: u.uid === getUserId() }));
@@ -213,7 +215,7 @@ export function getUserCount() { return getPresence().length; }
 
 function broadcastPresence() {
   if (mode !== 'host') return;
-  const payload = { type: 'presence', users: getPresence().map((u) => ({ uid: u.uid, name: u.name, host: u.host, peerId: u.peerId, voice: u.voice })) };
+  const payload = { type: 'presence', users: getPresence().map((u) => ({ uid: u.uid, name: u.name, host: u.host, peerId: u.peerId, voice: u.voice, camera: u.camera })) };
   conns.forEach((c) => { try { if (c.open) c.send(payload); } catch (e) { /* */ } });
 }
 
@@ -328,7 +330,7 @@ function resetSyncState() {
 // ---- Content construction (no camera; positions = spawn hint) ----
 function localIds() {
   const ids = new Set();
-  state.nodes.forEach(n => { if (n.kind !== 'liaison') ids.add(n.id); });
+  state.nodes.forEach(n => { if (n.kind !== 'liaison' && n.kind !== 'camera') ids.add(n.id); });
   state.circles.forEach(c => ids.add(c.id));
   state.hexagons.forEach(h => ids.add(h.id));
   return ids;
@@ -351,6 +353,7 @@ function buildContent() {
   const n = {}, c = {}, h = {};
   for (const node of state.nodes) {
     if (node.kind === 'liaison') continue;
+    if (node.kind === 'camera') continue; // ephemeral, local to this device only -- see voicechat.js
     if (node.kind === 'voice') { n[node.id] = { vc: 1, dur: node.dur || 0, x: node.x, y: node.y, w: node.w, h: node.h }; continue; }
     if (node.kind === 'connector') {
       // In bridge mode the yaml (device address/credentials) is never sent
@@ -676,7 +679,7 @@ function handleData(msg, origin) {
     if (mode === 'host') conns.forEach((c) => { if (c !== origin) sendTo(c, msg); }); // relay to other clients
     return;
   } else if (msg.type === 'hello') {
-    if (origin) { origin._uid = msg.uid; origin._name = msg.name; origin._peerId = msg.peerId; origin._voice = msg.voice; }
+    if (origin) { origin._uid = msg.uid; origin._name = msg.name; origin._peerId = msg.peerId; origin._voice = msg.voice; origin._camera = msg.camera; }
     broadcastPresence(); // host: updates the list for everyone
     return;
   } else if (msg.type === 'presence') {

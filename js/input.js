@@ -3,27 +3,28 @@
 import {
   state, addRect, addCircle, addHexagon, addConnector, removeById, scheduleSave, COLORS, BUTTON_COLORS,
   findById, newId, sourceOf, displayImage, displayLink, displayText, getBoardId, undo,
-} from './state.js?v=msa0jvj9';
-import { screenToWorld, worldToScreen, zoomAt, panBy } from './camera.js?v=msa0jvj9';
-import { dragTo, reset } from './physics.js?v=msa0jvj9';
-import { pointInHex } from './geom.js?v=msa0jvj9';
-import { pollConnector, stopPolling, toggleSwitch, applyConnectorProgram, refreshConnector, toggleStopwatch, resetStopwatch, setCountdownTarget } from './connector.js?v=msa0jvj9';
-import { startHost, adoptHost, detachHost, refreshHostId, pushMove, pushDelete, isClient, isOwner, hostId, buildUrl, loadQR, reportCursor, shareImage, requestSwitchToggle } from './sync.js?v=msa0jvj9';
-import { getUserId } from './users.js?v=msa0jvj9';
-import { storeImage, resolveSrc, inlineImages, dataUrlToBlob, blobToDataUrl } from './images.js?v=msa0jvj9';
-import { getAudio, putAudio } from './audio.js?v=msa0jvj9';
-import { toast } from './main.js?v=msa0jvj9';
-import { explodeElementCascade } from './fx.js?v=msa0jvj9';
-import { genBoardId, listBoards, buildBoardUrl, recordBoard, rewriteLinksForBoard, parseBoardUrl, reservedBoardLabel, deleteBoardData } from './boards.js?v=msa0jvj9';
-import { listLiaisons, removeLiaison } from './liaisons.js?v=msa0jvj9';
-import { openSettings } from './settings.js?v=msa0jvj9';
-import { recordVoiceMemo, toggleVoice, removeVoiceAudio } from './voice.js?v=msa0jvj9';
-import { toggleDebug } from './debug.js?v=msa0jvj9';
-import { youTubeId } from './yt.js?v=msa0jvj9';
-import { setActiveVideo } from './video.js?v=msa0jvj9';
-import { t } from './i18n.js?v=msa0jvj9';
-import { openExternal } from './platform.js?v=msa0jvj9';
-import { isIcsUrl } from './ics.js?v=msa0jvj9';
+} from './state.js?v=msa2akt3';
+import { screenToWorld, worldToScreen, zoomAt, panBy } from './camera.js?v=msa2akt3';
+import { dragTo, reset } from './physics.js?v=msa2akt3';
+import { pointInHex } from './geom.js?v=msa2akt3';
+import { pollConnector, stopPolling, toggleSwitch, applyConnectorProgram, refreshConnector, toggleStopwatch, resetStopwatch, setCountdownTarget } from './connector.js?v=msa2akt3';
+import { startHost, adoptHost, detachHost, refreshHostId, pushMove, pushDelete, isClient, isOwner, hostId, buildUrl, loadQR, reportCursor, shareImage, requestSwitchToggle } from './sync.js?v=msa2akt3';
+import { getUserId } from './users.js?v=msa2akt3';
+import { storeImage, resolveSrc, inlineImages, dataUrlToBlob, blobToDataUrl } from './images.js?v=msa2akt3';
+import { getAudio, putAudio } from './audio.js?v=msa2akt3';
+import { toast } from './main.js?v=msa2akt3';
+import { explodeElementCascade } from './fx.js?v=msa2akt3';
+import { genBoardId, listBoards, buildBoardUrl, recordBoard, rewriteLinksForBoard, parseBoardUrl, reservedBoardLabel, deleteBoardData } from './boards.js?v=msa2akt3';
+import { listLiaisons, removeLiaison } from './liaisons.js?v=msa2akt3';
+import { openSettings } from './settings.js?v=msa2akt3';
+import { recordVoiceMemo, toggleVoice, removeVoiceAudio } from './voice.js?v=msa2akt3';
+import { toggleDebug } from './debug.js?v=msa2akt3';
+import { youTubeId } from './yt.js?v=msa2akt3';
+import { setActiveVideo } from './video.js?v=msa2akt3';
+import { t } from './i18n.js?v=msa2akt3';
+import { openExternal } from './platform.js?v=msa2akt3';
+import { toggleCamera, dismissRemoteCamera } from './voicechat.js?v=msa2akt3';
+import { isIcsUrl } from './ics.js?v=msa2akt3';
 
 let canvas;
 let drag = null;        // { mode, id, offx, offy, startX, startY }
@@ -421,7 +422,7 @@ function finishDrag() {
         }
       }
     }
-    if (n && !n.ref && n.kind !== 'connector') {
+    if (n && !n.ref && n.kind !== 'connector' && n.kind !== 'camera') {
       const cx = n.x + n.w / 2, cy = n.y + n.h / 2;
       const hex = hexagonAt(cx, cy);
       if (hex) {
@@ -457,7 +458,7 @@ function finishDrag() {
     const b = screenToWorld(Math.max(drag.x0, drag.x1), Math.max(drag.y0, drag.y1));
     const ids = [];
     for (const nd of state.nodes) {
-      if (nd.kind === 'liaison') continue;
+      if (nd.kind === 'liaison' || nd.kind === 'camera') continue;
       const cx = nd.x + nd.w / 2, cy = nd.y + nd.h / 2;
       if (cx >= a.x && cx <= b.x && cy >= a.y && cy <= b.y) ids.push(nd.id);
     }
@@ -699,6 +700,7 @@ function handleDouble(sx, sy) {
   // Double-tap/click on a link => follows it directly (allowed even when locked).
   if (r && displayLink(r)) { clearLinkFocus(); followLink(displayLink(r)); return; }
   if (r && r.kind === 'voice') { toggleVoice(r); return; } // double-click = playback
+  if (r && r.kind === 'camera') return; // no text to edit on a live video block
   if (r && !r.ref && youTubeId(r.text)) { setActiveVideo(r); return; } // same for a video block
   // Connector switch: like voice playback, allowed even with mobile interaction
   // locked (that lock is only meant to prevent accidental drags/edits) -- but
@@ -1018,6 +1020,15 @@ function removeElement(el) {
     stopPolling(el.id);
     removeById(el.id); scheduleSave(); return;
   }
+  if (el.kind === 'camera') {
+    // Ephemeral, never synced -- closing it locally is the whole action,
+    // nothing to propagate. 'local' (our own preview) actually turns the
+    // camera off; a remote participant's block just stops US from
+    // displaying their feed until their camera cycles off then on again
+    // (see voicechat.js: dismissRemoteCamera).
+    if (el.owner === 'local') toggleCamera(); else dismissRemoteCamera(el.owner);
+    return;
+  }
   explodeElementCascade(el); // local explosion
   pushDelete(el.id);         // explosion + deletion for peers
   removeById(el.id);
@@ -1170,6 +1181,8 @@ function openContextAt(sx, sy) {
       { label: t('radial.playPause'), icon: 'mic', color: COL.green, fn: () => toggleVoice(r) },
       { label: t('radial.delete'), icon: 'trash', color: COL.red, fn: () => removeElement(r) },
     ];
+  } else if (r && r.kind === 'camera') {
+    items = [{ label: t('radial.close'), icon: 'trash', color: COL.red, fn: () => removeElement(r) }];
   } else if (r && r.kind === 'connector') {
     items = [{ label: t('radial.editProgram'), icon: 'edit', color: COL.cyan, fn: () => openConnectorEditor(r) }];
     if (r.display !== 'switch') items.push({ label: t('radial.makeSwitch'), icon: 'power', color: COL.wood, fn: () => { r.display = 'switch'; scheduleSave(); pollConnector(r); } });

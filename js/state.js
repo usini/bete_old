@@ -1,7 +1,7 @@
 // Shared data model + localStorage persistence.
-import { pointInHex } from './geom.js?v=msa0jvj9';
-import { getUserId } from './users.js?v=msa0jvj9';
-import { parseBoardUrl, buildBoardUrl } from './boards.js?v=msa0jvj9';
+import { pointInHex } from './geom.js?v=msa2akt3';
+import { getUserId } from './users.js?v=msa2akt3';
+import { parseBoardUrl, buildBoardUrl } from './boards.js?v=msa2akt3';
 
 export const DEFAULT_GREEN = '#39ff14';
 
@@ -90,6 +90,18 @@ export function addConnector(wx, wy) {
   return n;
 }
 
+// Ephemeral video-chat block: same "transient, never saved/synced" treatment
+// as a liaison block (see serialize() below and sync.js: buildContent/
+// localIds) -- it exists purely to give a live camera stream a place on the
+// canvas to be dragged/resized, never board content. `owner` is 'local' for
+// our own camera, or the remote peer's connection id for a participant's
+// (see voicechat.js) -- used to look up which MediaStream feeds it.
+export function addCameraNode(wx, wy, owner, name) {
+  const n = { id: newId(), x: wx, y: wy, w: 220, h: 165, kind: 'camera', owner, name: name || '' };
+  state.nodes.push(n);
+  return n;
+}
+
 export function findById(id) {
   return state.nodes.find(n => n.id === id)
     || state.circles.find(c => c.id === id)
@@ -156,7 +168,7 @@ export function serialize() {
     readOnly: state.readOnly || undefined,
     camera: { ...state.camera },
     nodes: state.nodes
-      .filter(n => n.kind !== 'liaison') // liaison blocks are transient
+      .filter(n => n.kind !== 'liaison' && n.kind !== 'camera') // both are transient
       .map(n => {
         if (n.ref) return { id: n.id, x: n.x, y: n.y, w: n.w, h: n.h, ref: n.ref };
         if (n.kind === 'voice') return { id: n.id, x: n.x, y: n.y, w: n.w, h: n.h, kind: 'voice', dur: n.dur || 0 }; // audio in IndexedDB

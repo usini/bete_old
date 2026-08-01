@@ -419,6 +419,17 @@ html, body {
 #speakerbtn.off .spk-on { display: none; }
 #speakerbtn.off .spk-off { display: inline; }
 
+/* Camera button (video chat), to the right of the speaker. */
+#camerabtn {
+  position: fixed; top: calc(10px + var(--safe-top)); left: 154px; z-index: 23;
+  width: 40px; height: 40px; display: flex; align-items: center; justify-content: center; padding: 0;
+  background: var(--node-bg); border: 3px solid var(--green); color: var(--green);
+  box-shadow: 0 0 12px rgba(57, 255, 20, 0.35); cursor: pointer;
+}
+#camerabtn svg { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+#camerabtn.hidden { display: none; }
+#camerabtn.on { background: #fe4365; border-color: #fff; color: #fff; }
+
 /* "Who's talking" banner. */
 #speakers {
   position: fixed; top: calc(56px + var(--safe-top)); left: 50%; transform: translateX(-50%); z-index: 21;
@@ -528,14 +539,14 @@ html, body {
 }
 .theme-winxp #hint, .theme-winxp #netmode { color: #fff; text-shadow: 0 1px 2px rgba(0,0,0,0.6); }
 .theme-winxp #boardname { color: #fff; text-shadow: 0 1px 2px rgba(0,0,0,0.6); }
-.theme-winxp #settingsbtn, .theme-winxp #voicebtn, .theme-winxp #speakerbtn {
+.theme-winxp #settingsbtn, .theme-winxp #voicebtn, .theme-winxp #speakerbtn, .theme-winxp #camerabtn {
   background: linear-gradient(#fff, #ece9d8);
   border: 1px solid #0a246a;
   border-radius: 4px;
   color: #0a246a;
   box-shadow: inset 0 1px 0 rgba(255,255,255,0.8);
 }
-.theme-winxp #settingsbtn:hover, .theme-winxp #voicebtn:hover, .theme-winxp #speakerbtn:hover { background: linear-gradient(#e8f2ff, #cfe4fc); }
+.theme-winxp #settingsbtn:hover, .theme-winxp #voicebtn:hover, .theme-winxp #speakerbtn:hover, .theme-winxp #camerabtn:hover { background: linear-gradient(#e8f2ff, #cfe4fc); }
 .theme-winxp .ritem {
   background: linear-gradient(#fff, #ece9d8);
   border: 1px solid var(--c, #0a246a);
@@ -698,6 +709,20 @@ html, body {
   font-size: 13px; line-height: 1; cursor: pointer;
 }
 #videoplayer .vp-x:hover { background: #ff5c79; }
+
+/* ---- Video-chat camera blocks (js/voicechat.js) ---- */
+/* pointer-events: none -- clicks/drags must reach the canvas underneath
+   (drag, select, delete all happen on the block's canvas-drawn frame, this
+   is purely the picture on top of it). */
+.camera-overlay {
+  position: fixed;
+  z-index: 40;
+  object-fit: cover;
+  pointer-events: none;
+}
+/* Only OUR OWN preview is mirrored (natural "looking in a mirror" feel) --
+   a remote participant's video must render as-is, mirroring THEIRS would be wrong. */
+.camera-overlay.camera-mirror { transform: scaleX(-1); }
 
 /* ---- Scanlines CRT ---- */
 #crt {
