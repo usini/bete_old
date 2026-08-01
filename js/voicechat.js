@@ -11,11 +11,11 @@
 // Whether a peer's video is actually worth DISPLAYING (as opposed to just a
 // blank feed we're ignoring) is driven entirely by presence (`camera: true`),
 // not by inspecting track content -- see syncCameraBlocks().
-import { getPeer, getPresence, setLocalVoice, setLocalCamera, onIncomingCall } from './sync.js?v=msa2akt3';
-import { state, addCameraNode, removeById } from './state.js?v=msa2akt3';
-import { reset } from './physics.js?v=msa2akt3';
-import { worldToScreen } from './camera.js?v=msa2akt3';
-import { t } from './i18n.js?v=msa2akt3';
+import { getPeer, getPresence, setLocalVoice, setLocalCamera, onIncomingCall } from './sync.js?v=msa2x6cp';
+import { state, addCameraNode, removeById } from './state.js?v=msa2x6cp';
+import { reset } from './physics.js?v=msa2x6cp';
+import { worldToScreen } from './camera.js?v=msa2x6cp';
+import { t } from './i18n.js?v=msa2x6cp';
 
 let micOn = false;
 let listenOn = true; // listening enabled by default
@@ -74,6 +74,28 @@ export async function listMics() {
     mics = [{ deviceId: SYSTEM_AUDIO_ID, label: t('settings.micSystemAudio') }, ...mics];
   }
   return mics;
+}
+
+// Preferred camera (deviceId), same pattern as the mic above.
+let preferredCameraId = '';
+try { preferredCameraId = localStorage.getItem('bete:cameradevice') || ''; } catch (e) { /* */ }
+export function getPreferredCamera() { return preferredCameraId; }
+export function setPreferredCamera(id) {
+  preferredCameraId = id || '';
+  try { localStorage.setItem('bete:cameradevice', preferredCameraId); } catch (e) { /* */ }
+  if (cameraOn) restartCamera(); // applies right away if already showing
+}
+
+// List of available cameras (needs a camera permission already granted to have labels).
+export async function listCameras() {
+  try {
+    const devs = await navigator.mediaDevices.enumerateDevices();
+    return devs.filter((d) => d.kind === 'videoinput');
+  } catch (e) { return []; }
+}
+
+function cameraConstraints() {
+  return { video: preferredCameraId ? { deviceId: { exact: preferredCameraId } } : true };
 }
 
 function micConstraints() {
@@ -298,7 +320,7 @@ export async function toggleCamera() {
     alert(t('alert.cameraMaxReached', { n: MAX_CAMERAS }));
     return false;
   }
-  try { cameraStream = await navigator.mediaDevices.getUserMedia({ video: true }); }
+  try { cameraStream = await navigator.mediaDevices.getUserMedia(cameraConstraints()); }
   catch (e) { alert(t('alert.cameraUnavailable')); return false; }
   cameraOn = true; setLocalCamera(true);
   const n = addCameraNode(state.camera.x - 110, state.camera.y - 82, 'local', t('liaison.you'));
@@ -313,6 +335,17 @@ export async function toggleCamera() {
 
 function stopCameraStream() {
   if (cameraStream) { cameraStream.getTracks().forEach((tr) => tr.stop()); cameraStream = null; }
+}
+
+// Restarts the camera stream on a device change without toggling the UI off
+// (used by setPreferredCamera) -- same pattern as restartMic.
+async function restartCamera() {
+  stopCameraStream();
+  try { cameraStream = await navigator.mediaDevices.getUserMedia(cameraConstraints()); }
+  catch (e) { cameraStream = null; return; }
+  localVideoEl.srcObject = cameraStream;
+  localVideoEl.play().catch(() => {});
+  replaceOutgoingTrack('video', cameraStream.getVideoTracks()[0]);
 }
 
 // Closing a remote participant's camera block by hand doesn't affect their
