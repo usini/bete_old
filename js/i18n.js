@@ -198,7 +198,7 @@ const STRINGS = {
     'settings.theme': 'Theme',
     'settings.textSize': 'Text size',
     'settings.language': 'Language',
-    'settings.liaisons': 'Liaisons',
+    'settings.liaisons': 'Links',
     'settings.shareMode': 'Sharing',
     'settings.shareInternet': 'Internet',
     'settings.shareLan': 'Local network',
@@ -322,7 +322,7 @@ const STRINGS = {
 
     'board.home': 'Home',
     'board.tutorial': 'Tutoriel',
-    'board.boards': 'Boards',
+    'board.boards': 'Tableaux',
 
     'radial.close': 'Fermer',
     'radial.enable': 'Activer',
