@@ -3,28 +3,28 @@
 import {
   state, addRect, addCircle, addHexagon, addConnector, removeById, scheduleSave, COLORS, BUTTON_COLORS,
   findById, newId, sourceOf, displayImage, displayLink, displayText, getBoardId, undo,
-} from './state.js?v=msa2x6cp';
-import { screenToWorld, worldToScreen, zoomAt, panBy } from './camera.js?v=msa2x6cp';
-import { dragTo, reset } from './physics.js?v=msa2x6cp';
-import { pointInHex } from './geom.js?v=msa2x6cp';
-import { pollConnector, stopPolling, toggleSwitch, applyConnectorProgram, refreshConnector, toggleStopwatch, resetStopwatch, setCountdownTarget } from './connector.js?v=msa2x6cp';
-import { startHost, adoptHost, detachHost, refreshHostId, pushMove, pushDelete, isClient, isOwner, hostId, buildUrl, loadQR, reportCursor, shareImage, requestSwitchToggle } from './sync.js?v=msa2x6cp';
-import { getUserId } from './users.js?v=msa2x6cp';
-import { storeImage, resolveSrc, inlineImages, dataUrlToBlob, blobToDataUrl } from './images.js?v=msa2x6cp';
-import { getAudio, putAudio } from './audio.js?v=msa2x6cp';
-import { toast } from './main.js?v=msa2x6cp';
-import { explodeElementCascade } from './fx.js?v=msa2x6cp';
-import { genBoardId, listBoards, buildBoardUrl, recordBoard, rewriteLinksForBoard, parseBoardUrl, reservedBoardLabel, deleteBoardData } from './boards.js?v=msa2x6cp';
-import { listLiaisons, removeLiaison } from './liaisons.js?v=msa2x6cp';
-import { openSettings } from './settings.js?v=msa2x6cp';
-import { recordVoiceMemo, toggleVoice, removeVoiceAudio } from './voice.js?v=msa2x6cp';
-import { toggleDebug } from './debug.js?v=msa2x6cp';
-import { youTubeId } from './yt.js?v=msa2x6cp';
-import { setActiveVideo } from './video.js?v=msa2x6cp';
-import { t } from './i18n.js?v=msa2x6cp';
-import { openExternal } from './platform.js?v=msa2x6cp';
-import { toggleCamera, dismissRemoteCamera } from './voicechat.js?v=msa2x6cp';
-import { isIcsUrl } from './ics.js?v=msa2x6cp';
+} from './state.js?v=msa37vkx';
+import { screenToWorld, worldToScreen, zoomAt, panBy } from './camera.js?v=msa37vkx';
+import { dragTo, reset } from './physics.js?v=msa37vkx';
+import { pointInHex } from './geom.js?v=msa37vkx';
+import { pollConnector, stopPolling, toggleSwitch, applyConnectorProgram, refreshConnector, toggleStopwatch, resetStopwatch, setCountdownTarget } from './connector.js?v=msa37vkx';
+import { startHost, adoptHost, detachHost, refreshHostId, pushMove, pushDelete, isClient, isOwner, hostId, buildUrl, loadQR, reportCursor, shareImage, requestSwitchToggle } from './sync.js?v=msa37vkx';
+import { getUserId } from './users.js?v=msa37vkx';
+import { storeImage, resolveSrc, inlineImages, dataUrlToBlob, blobToDataUrl } from './images.js?v=msa37vkx';
+import { getAudio, putAudio } from './audio.js?v=msa37vkx';
+import { toast } from './main.js?v=msa37vkx';
+import { explodeElementCascade } from './fx.js?v=msa37vkx';
+import { genBoardId, listBoards, buildBoardUrl, recordBoard, rewriteLinksForBoard, parseBoardUrl, reservedBoardLabel, deleteBoardData } from './boards.js?v=msa37vkx';
+import { listLiaisons, removeLiaison } from './liaisons.js?v=msa37vkx';
+import { openSettings } from './settings.js?v=msa37vkx';
+import { recordVoiceMemo, toggleVoice, removeVoiceAudio } from './voice.js?v=msa37vkx';
+import { toggleDebug } from './debug.js?v=msa37vkx';
+import { youTubeId } from './yt.js?v=msa37vkx';
+import { setActiveVideo } from './video.js?v=msa37vkx';
+import { t } from './i18n.js?v=msa37vkx';
+import { openExternal } from './platform.js?v=msa37vkx';
+import { toggleCamera, dismissRemoteCamera } from './voicechat.js?v=msa37vkx';
+import { isIcsUrl } from './ics.js?v=msa37vkx';
 
 let canvas;
 let drag = null;        // { mode, id, offx, offy, startX, startY }

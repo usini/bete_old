@@ -11,11 +11,11 @@
 // Whether a peer's video is actually worth DISPLAYING (as opposed to just a
 // blank feed we're ignoring) is driven entirely by presence (`camera: true`),
 // not by inspecting track content -- see syncCameraBlocks().
-import { getPeer, getPresence, setLocalVoice, setLocalCamera, onIncomingCall } from './sync.js?v=msa2x6cp';
-import { state, addCameraNode, removeById } from './state.js?v=msa2x6cp';
-import { reset } from './physics.js?v=msa2x6cp';
-import { worldToScreen } from './camera.js?v=msa2x6cp';
-import { t } from './i18n.js?v=msa2x6cp';
+import { getPeer, getPresence, setLocalVoice, setLocalCamera, onIncomingCall } from './sync.js?v=msa37vkx';
+import { state, addCameraNode, removeById } from './state.js?v=msa37vkx';
+import { reset } from './physics.js?v=msa37vkx';
+import { worldToScreen } from './camera.js?v=msa37vkx';
+import { t } from './i18n.js?v=msa37vkx';
 
 let micOn = false;
 let listenOn = true; // listening enabled by default
@@ -86,16 +86,48 @@ export function setPreferredCamera(id) {
   if (cameraOn) restartCamera(); // applies right away if already showing
 }
 
+// Pseudo-device: shares a screen/window/tab (via the browser's own share
+// picker) instead of a physical camera -- same idea as SYSTEM_AUDIO_ID above,
+// and fully independent of it (e.g. mic -> "computer sound" + camera ->
+// "share screen" can be combined, or used separately).
+export const SCREEN_SHARE_ID = 'screen-share';
+
 // List of available cameras (needs a camera permission already granted to have labels).
 export async function listCameras() {
+  let cams = [];
   try {
     const devs = await navigator.mediaDevices.enumerateDevices();
-    return devs.filter((d) => d.kind === 'videoinput');
-  } catch (e) { return []; }
+    cams = devs.filter((d) => d.kind === 'videoinput');
+  } catch (e) { /* */ }
+  if (navigator.mediaDevices && navigator.mediaDevices.getDisplayMedia) {
+    cams = [{ deviceId: SCREEN_SHARE_ID, label: t('settings.cameraScreenShare') }, ...cams];
+  }
+  return cams;
 }
 
 function cameraConstraints() {
   return { video: preferredCameraId ? { deviceId: { exact: preferredCameraId } } : true };
+}
+
+// Resolves the video stream: either a physical camera (getUserMedia) or a
+// screen/window share (getDisplayMedia, video only -- any audio track the
+// picker also grants is stopped immediately, that's the mic's own "computer
+// sound" option's job, not this one's, so we don't silently double-capture it).
+async function acquireCameraStream() {
+  if (preferredCameraId === SCREEN_SHARE_ID) {
+    const disp = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: false });
+    return disp;
+  }
+  return navigator.mediaDevices.getUserMedia(cameraConstraints());
+}
+
+// Screen/window shares end when the user clicks the browser's own "Stop
+// sharing" bar (unlike a physical camera, which just keeps running) -- watch
+// for that and turn the camera off cleanly instead of leaving a dead block.
+function attachCameraEndedWatch(stream) {
+  const track = stream.getVideoTracks()[0];
+  if (!track) return;
+  track.onended = () => { if (cameraOn && stream === cameraStream) toggleCamera(); };
 }
 
 function micConstraints() {
@@ -320,8 +352,9 @@ export async function toggleCamera() {
     alert(t('alert.cameraMaxReached', { n: MAX_CAMERAS }));
     return false;
   }
-  try { cameraStream = await navigator.mediaDevices.getUserMedia(cameraConstraints()); }
+  try { cameraStream = await acquireCameraStream(); }
   catch (e) { alert(t('alert.cameraUnavailable')); return false; }
+  attachCameraEndedWatch(cameraStream);
   cameraOn = true; setLocalCamera(true);
   const n = addCameraNode(state.camera.x - 110, state.camera.y - 82, 'local', t('liaison.you'));
   reset(n);
@@ -341,8 +374,9 @@ function stopCameraStream() {
 // (used by setPreferredCamera) -- same pattern as restartMic.
 async function restartCamera() {
   stopCameraStream();
-  try { cameraStream = await navigator.mediaDevices.getUserMedia(cameraConstraints()); }
+  try { cameraStream = await acquireCameraStream(); }
   catch (e) { cameraStream = null; return; }
+  attachCameraEndedWatch(cameraStream);
   localVideoEl.srcObject = cameraStream;
   localVideoEl.play().catch(() => {});
   replaceOutgoingTrack('video', cameraStream.getVideoTracks()[0]);
@@ -405,7 +439,10 @@ function positionOverlay(nodeId, el) {
   const n = nodeId && state.nodes.find((x) => x.id === nodeId);
   if (!n) { if (el.parentNode) el.remove(); return; }
   if (!el.parentNode) document.body.appendChild(el);
-  el.className = 'camera-overlay' + (el === localVideoEl ? ' camera-mirror' : '');
+  // Mirror only our own preview, and only when it's an actual physical
+  // camera -- mirroring a screen/window share would look plain broken.
+  const mirror = el === localVideoEl && preferredCameraId !== SCREEN_SHARE_ID;
+  el.className = 'camera-overlay' + (mirror ? ' camera-mirror' : '');
   const rx = n._rx !== undefined ? n._rx : n.x;
   const ry = n._ry !== undefined ? n._ry : n.y;
   const z = state.camera.zoom;

@@ -6,18 +6,18 @@
 // (falls back to host priority if both sides are on the same build) -- an
 // out-of-date host (stale tab, permanent Pi host not yet redeployed) must not
 // keep clobbering a freshly-updated peer's edits forever.
-import { state, removeById, scheduleSave, getBoardId, getBoardName, setBoardName } from './state.js?v=msa2x6cp';
-import { reset } from './physics.js?v=msa2x6cp';
-import { explodeElementCascade } from './fx.js?v=msa2x6cp';
-import { putAudio, getAudio, delAudio, putImage, getImage } from './audio.js?v=msa2x6cp';
-import { onImageArrived } from './images.js?v=msa2x6cp';
-import { getUserId, displayName } from './users.js?v=msa2x6cp';
-import { shareOrigin } from './platform.js?v=msa2x6cp';
-import { recordBoard, rewriteLinksForBoard, parseBoardUrl, buildBoardUrl } from './boards.js?v=msa2x6cp';
-import { getOwnerToken, recordLiaison, getBoardPassHash, setBoardPassHash, hashPassphrase } from './liaisons.js?v=msa2x6cp';
-import { pollConnector, stopPolling, toggleSwitch } from './connector.js?v=msa2x6cp';
-import { fetchIcsLocal, resolveIcsPeerResponse, retryFailedIcs } from './ics.js?v=msa2x6cp';
-import { refreshBoardNameUI } from './main.js?v=msa2x6cp';
+import { state, removeById, scheduleSave, getBoardId, getBoardName, setBoardName } from './state.js?v=msa37vkx';
+import { reset } from './physics.js?v=msa37vkx';
+import { explodeElementCascade } from './fx.js?v=msa37vkx';
+import { putAudio, getAudio, delAudio, putImage, getImage } from './audio.js?v=msa37vkx';
+import { onImageArrived } from './images.js?v=msa37vkx';
+import { getUserId, displayName } from './users.js?v=msa37vkx';
+import { shareOrigin } from './platform.js?v=msa37vkx';
+import { recordBoard, rewriteLinksForBoard, parseBoardUrl, buildBoardUrl } from './boards.js?v=msa37vkx';
+import { getOwnerToken, recordLiaison, getBoardPassHash, setBoardPassHash, hashPassphrase } from './liaisons.js?v=msa37vkx';
+import { pollConnector, stopPolling, toggleSwitch } from './connector.js?v=msa37vkx';
+import { fetchIcsLocal, resolveIcsPeerResponse, retryFailedIcs } from './ics.js?v=msa37vkx';
+import { refreshBoardNameUI } from './main.js?v=msa37vkx';
 
 let clientRoster = []; // client side: list of users received from the host
 let lastHostMsg = 0;   // client side: timestamp of the last message received from the host
