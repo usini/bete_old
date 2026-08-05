@@ -1,7 +1,7 @@
-// Minimap : vue d'ensemble + viewport courant, clic pour recentrer.
-import { state, effectiveColor } from './state.js?v=msa37vkx';
-import { view, centerOn } from './camera.js?v=msa37vkx';
-import { hexCorners } from './geom.js?v=msa37vkx';
+// Minimap: overview + current viewport, click to recenter.
+import { state, effectiveColor } from './state.js?v=msggfhg3';
+import { view, centerOn } from './camera.js?v=msggfhg3';
+import { hexCorners } from './geom.js?v=msggfhg3';
 
 let canvas, ctx, W, H;
 
@@ -29,7 +29,7 @@ export function init() {
   }, { passive: false });
 }
 
-// Bounding box monde de tout le contenu (+ padding), avec garde-fous.
+// World-space bounding box of all the content (+ padding), with guards.
 function bounds() {
   let minx = Infinity, miny = Infinity, maxx = -Infinity, maxy = -Infinity;
   const push = (x, y) => {

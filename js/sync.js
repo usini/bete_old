@@ -6,18 +6,18 @@
 // (falls back to host priority if both sides are on the same build) -- an
 // out-of-date host (stale tab, permanent Pi host not yet redeployed) must not
 // keep clobbering a freshly-updated peer's edits forever.
-import { state, removeById, scheduleSave, getBoardId, getBoardName, setBoardName } from './state.js?v=msa37vkx';
-import { reset } from './physics.js?v=msa37vkx';
-import { explodeElementCascade } from './fx.js?v=msa37vkx';
-import { putAudio, getAudio, delAudio, putImage, getImage } from './audio.js?v=msa37vkx';
-import { onImageArrived } from './images.js?v=msa37vkx';
-import { getUserId, displayName } from './users.js?v=msa37vkx';
-import { shareOrigin } from './platform.js?v=msa37vkx';
-import { recordBoard, rewriteLinksForBoard, parseBoardUrl, buildBoardUrl } from './boards.js?v=msa37vkx';
-import { getOwnerToken, recordLiaison, getBoardPassHash, setBoardPassHash, hashPassphrase } from './liaisons.js?v=msa37vkx';
-import { pollConnector, stopPolling, toggleSwitch } from './connector.js?v=msa37vkx';
-import { fetchIcsLocal, resolveIcsPeerResponse, retryFailedIcs } from './ics.js?v=msa37vkx';
-import { refreshBoardNameUI } from './main.js?v=msa37vkx';
+import { state, removeById, scheduleSave, getBoardId, getBoardName, setBoardName, clampNum, clampText, LIMITS } from './state.js?v=msggfhg3';
+import { reset } from './physics.js?v=msggfhg3';
+import { explodeElementCascade } from './fx.js?v=msggfhg3';
+import { putAudio, getAudio, delAudio, putImage, getImage } from './audio.js?v=msggfhg3';
+import { onImageArrived } from './images.js?v=msggfhg3';
+import { getUserId, displayName } from './users.js?v=msggfhg3';
+import { shareOrigin } from './platform.js?v=msggfhg3';
+import { recordBoard, rewriteLinksForBoard, parseBoardUrl, buildBoardUrl } from './boards.js?v=msggfhg3';
+import { getOwnerToken, recordLiaison, getBoardPassHash, setBoardPassHash, hashPassphrase } from './liaisons.js?v=msggfhg3';
+import { pollConnector, stopPolling, toggleSwitch } from './connector.js?v=msggfhg3';
+import { fetchIcsLocal, resolveIcsPeerResponse, retryFailedIcs, isIcsUrl } from './ics.js?v=msggfhg3';
+import { refreshBoardNameUI } from './main.js?v=msggfhg3';
 
 let clientRoster = []; // client side: list of users received from the host
 let lastHostMsg = 0;   // client side: timestamp of the last message received from the host
@@ -444,7 +444,7 @@ function findLocal(id) {
 // the wire; this re-derives the origin-less form on arrival, same as the
 // migration state.js:load() already does for a freshly loaded/imported board.
 function normalizeLink(lk) {
-  if (!lk) return lk;
+  if (typeof lk !== 'string' || !lk) return undefined;
   const bu = parseBoardUrl(lk);
   return bu ? buildBoardUrl(bu.id, bu.peer) : lk;
 }
@@ -493,15 +493,26 @@ function merge(remote) {
   for (const id in remote.n || {}) {
     if (tombstones.has(id)) continue;
     const rd = remote.n[id];
+    // A hostile peer can send null/primitive entries: skip instead of throwing
+    // mid-merge (which would abort the rest of this message's application).
+    if (!rd || typeof rd !== 'object') continue;
     const ex = state.nodes.find(x => x.id === id);
     if (!ex) {
       let node;
-      if (rd.vc) node = { id, x: rd.x, y: rd.y, w: rd.w, h: rd.h, kind: 'voice', dur: rd.dur || 0 };
-      else if (rd.cn) node = { id, x: rd.x, y: rd.y, w: rd.w, h: rd.h, kind: 'connector', yaml: rd.yml || '', display: rd.disp || 'triangle', clockFormat: rd.cf || 'HH:MM:SS', creatorUid: rd.creator || null, bridge: !!rd.br, color: rd.col || undefined, stopwatchStart: rd.sws || null, stopwatchElapsed: rd.swe || 0, countdownTarget: rd.ct || null };
+      // Geometry/text from the wire is untrusted: clamp before it reaches
+      // the physics/render (see state.js: clampNum/clampText).
+      const g = {
+        x: clampNum(rd.x, -LIMITS.pos, LIMITS.pos) ?? 0,
+        y: clampNum(rd.y, -LIMITS.pos, LIMITS.pos) ?? 0,
+        w: clampNum(rd.w, 8, LIMITS.w) ?? 150,
+        h: clampNum(rd.h, 8, LIMITS.h) ?? 70,
+      };
+      if (rd.vc) node = { id, ...g, kind: 'voice', dur: clampNum(rd.dur, 0, 86400) ?? 0 };
+      else if (rd.cn) node = { id, ...g, kind: 'connector', yaml: clampText(rd.yml, LIMITS.yaml), display: (rd.disp === 'clock' ? 'clock' : 'triangle'), clockFormat: clampText(rd.cf, 16) || 'HH:MM:SS', creatorUid: clampText(rd.creator, 64) || null, bridge: !!rd.br, color: clampText(rd.col, 32) || undefined, stopwatchStart: clampNum(rd.sws, 0, LIMITS.pos) ?? null, stopwatchElapsed: clampNum(rd.swe, 0, LIMITS.pos) ?? 0, countdownTarget: clampNum(rd.ct, 0, LIMITS.pos) ?? null };
       else node = rd.ref !== undefined
-        ? { id, x: rd.x, y: rd.y, w: rd.w, h: rd.h, ref: rd.ref }
-        : { id, x: rd.x, y: rd.y, w: rd.w, h: rd.h, text: rd.t || '', image: rd.img || undefined, color: rd.col || undefined };
-      if (rd.k) node.kind = rd.k;
+        ? { id, ...g, ref: rd.ref }
+        : { id, ...g, text: clampText(rd.t), image: (typeof rd.img === 'string' ? clampText(rd.img, 200) : undefined) || undefined, color: (typeof rd.col === 'string' ? clampText(rd.col, 32) : undefined) || undefined };
+      if (rd.k && ['voice', 'connector', 'pancarte', 'camera'].includes(rd.k)) node.kind = rd.k;
       if (rd.lk) node.link = normalizeLink(rd.lk);
       state.nodes.push(node); reset(node);
       if (rd.vc) ensureAudio(node); // fetches the audio from peers
@@ -515,32 +526,40 @@ function merge(remote) {
         // how memos are created: the radial menu converts a rectangle). Without
         // this branch the receiver kept a plain rectangle until a full reload.
         if (ex.kind !== 'voice') {
-          ex.kind = 'voice'; ex.dur = rd.dur || 0;
+          ex.kind = 'voice'; ex.dur = clampNum(rd.dur, 0, 86400) ?? 0;
           delete ex.text; delete ex.image; delete ex.link;
           ensureAudio(ex);
           changed = true;
-        } else if ((ex.dur || 0) !== (rd.dur || 0)) { ex.dur = rd.dur || 0; changed = true; }
+        } else if ((ex.dur || 0) !== (rd.dur || 0)) { ex.dur = clampNum(rd.dur, 0, 86400) ?? 0; changed = true; }
       } else if (rd.cn) {
         if (ex.kind !== 'connector') { ex.kind = 'connector'; delete ex.text; delete ex.image; delete ex.link; changed = true; }
-        if (!ex.creatorUid && rd.creator) { ex.creatorUid = rd.creator; changed = true; } // stamped once, never overwritten after
+        if (!ex.creatorUid && rd.creator) { ex.creatorUid = clampText(rd.creator, 64); changed = true; } // stamped once, never overwritten after
         if (!!ex.bridge !== !!rd.br) { ex.bridge = !!rd.br; changed = true; }
-        if ((ex.yaml || '') !== (rd.yml || '')) { ex.yaml = rd.yml || ''; changed = true; pollConnector(ex).catch(() => {}); }
-        if ((ex.color || '') !== (rd.col || '')) { ex.color = rd.col || undefined; changed = true; }
-        if ((ex.display || 'triangle') !== (rd.disp || 'triangle')) { ex.display = rd.disp || 'triangle'; changed = true; pollConnector(ex).catch(() => {}); }
-        if ((ex.clockFormat || 'HH:MM:SS') !== (rd.cf || 'HH:MM:SS')) { ex.clockFormat = rd.cf || 'HH:MM:SS'; changed = true; }
-        if ((ex.stopwatchStart || 0) !== (rd.sws || 0)) { ex.stopwatchStart = rd.sws || null; changed = true; }
-        if ((ex.stopwatchElapsed || 0) !== (rd.swe || 0)) { ex.stopwatchElapsed = rd.swe || 0; changed = true; }
-        if ((ex.countdownTarget || 0) !== (rd.ct || 0)) { ex.countdownTarget = rd.ct || null; changed = true; }
+        const yml = clampText(rd.yml, LIMITS.yaml);
+        if ((ex.yaml || '') !== yml) { ex.yaml = yml; changed = true; pollConnector(ex).catch(() => {}); }
+        const cc = clampText(rd.col, 32) || undefined;
+        if ((ex.color || '') !== (cc || '')) { ex.color = cc; changed = true; }
+        const disp = (rd.disp === 'clock' ? 'clock' : 'triangle');
+        if ((ex.display || 'triangle') !== disp) { ex.display = disp; changed = true; pollConnector(ex).catch(() => {}); }
+        const cf = clampText(rd.cf, 16) || 'HH:MM:SS';
+        if ((ex.clockFormat || 'HH:MM:SS') !== cf) { ex.clockFormat = cf; changed = true; }
+        const sws = clampNum(rd.sws, 0, LIMITS.pos);
+        if ((ex.stopwatchStart || 0) !== (sws || 0)) { ex.stopwatchStart = sws ?? null; changed = true; }
+        const swe = clampNum(rd.swe, 0, LIMITS.pos) ?? 0;
+        if ((ex.stopwatchElapsed || 0) !== swe) { ex.stopwatchElapsed = swe; changed = true; }
+        const ct = clampNum(rd.ct, 0, LIMITS.pos);
+        if ((ex.countdownTarget || 0) !== (ct || 0)) { ex.countdownTarget = ct ?? null; changed = true; }
       } else if (rd.ref !== undefined) { if (ex.ref !== rd.ref) { ex.ref = rd.ref; changed = true; } }
       else {
         if (ex.kind === 'voice') { delete ex.kind; delete ex.dur; changed = true; } // reverse conversion
         if (ex.kind === 'connector') { delete ex.kind; delete ex.yaml; delete ex.display; stopPolling(ex.id); changed = true; } // reverse conversion
-        if ((ex.text || '') !== (rd.t || '')) { ex.text = rd.t || ''; changed = true; }
+        const txt = clampText(rd.t);
+        if ((ex.text || '') !== txt) { ex.text = txt; changed = true; }
         const img = rd.img || undefined;
         if ((ex.image || undefined) !== img) { if (img) { ex.image = img; ensureImage(img); } else delete ex.image; changed = true; }
         const lk = normalizeLink(rd.lk) || undefined;
         if ((ex.link || undefined) !== lk) { if (lk) ex.link = lk; else delete ex.link; changed = true; }
-        const col = rd.col || undefined;
+        const col = (typeof rd.col === 'string' ? clampText(rd.col, 32) : undefined) || undefined;
         if ((ex.color || undefined) !== col) { if (col) ex.color = col; else delete ex.color; changed = true; }
       }
       mtimes[id] = remote.mt[id];
@@ -566,14 +585,24 @@ function mergeZones(arr, rem, remote, win, applied) {
   for (const id in rem) {
     if (tombstones.has(id)) continue;
     const rd = rem[id];
+    if (!rd || typeof rd !== 'object') continue; // same hostile-peer guard as merge()
     const ex = arr.find(x => x.id === id);
     if (!ex) {
-      arr.push({ id, x: rd.x, y: rd.y, r: rd.r, color: rd.col, description: rd.d });
+      arr.push({
+        id,
+        x: clampNum(rd.x, -LIMITS.pos, LIMITS.pos) ?? 0,
+        y: clampNum(rd.y, -LIMITS.pos, LIMITS.pos) ?? 0,
+        r: clampNum(rd.r, 1, LIMITS.r) ?? 50,
+        color: clampText(rd.col, 32) || rd.col,
+        description: clampText(rd.d),
+      });
       mtimes[id] = (remote.mt && remote.mt[id]) || now();
       applied.add(id); changed = true;
     } else if (win(id)) {
-      if (ex.color !== rd.col) { ex.color = rd.col; changed = true; }
-      if ((ex.description || '') !== rd.d) { ex.description = rd.d; changed = true; }
+      const zc = typeof rd.col === 'string' ? clampText(rd.col, 32) : undefined;
+      if (ex.color !== zc) { ex.color = zc; changed = true; }
+      const zd = clampText(rd.d);
+      if ((ex.description || '') !== zd) { ex.description = zd; changed = true; }
       mtimes[id] = remote.mt[id];
       applied.add(id);
     }
@@ -715,10 +744,19 @@ function handleData(msg, origin) {
     // their behalf (desktop's native fetch, or our own configured proxy).
     // If WE can't either, the host relays the request further out (star
     // topology: a plain client only ever talks to the host).
+    // The URL is re-validated HERE on purpose: isIcsUrl() is normally only
+    // checked when a link is created, and a wire message must never turn
+    // this browser/desktop into an unconstrained fetch relay for whoever
+    // happens to be on the liaison (SSRF to LAN/internal hosts).
+    if (!isIcsUrl(msg.url)) return;
     fetchIcsLocal(msg.url).then((text) => sendTo(origin, { type: 'icsRes', url: msg.url, text }))
       .catch(() => { if (mode === 'host') conns.forEach((c) => { if (c !== origin) sendTo(c, msg); }); });
     return;
   } else if (msg.type === 'icsRes') {
+    // Same gate on the response side: only accept replies for URLs we
+    // ourselves consider calendar feeds (a hostile peer could otherwise
+    // feed us arbitrary content as if it were a fetched calendar).
+    if (!isIcsUrl(msg.url)) return;
     resolveIcsPeerResponse(msg.url, msg.text, msg.error);
     if (mode === 'host') conns.forEach((c) => { if (c !== origin) sendTo(c, msg); }); // relay back toward whoever actually asked
     return;
@@ -821,11 +859,12 @@ function ensureImage(ref) {
 function applyMove(msg) {
   const el = findLocal(msg.id);
   if (!el) return;
-  if (msg.x != null) el.x = msg.x;
-  if (msg.y != null) el.y = msg.y;
-  if (msg.w != null) el.w = msg.w;
-  if (msg.h != null) el.h = msg.h;
-  if (msg.r != null) el.r = msg.r;
+  // Positions on drop only -- still untrusted input, clamp like merge().
+  const x = clampNum(msg.x, -LIMITS.pos, LIMITS.pos); if (x != null) el.x = x;
+  const y = clampNum(msg.y, -LIMITS.pos, LIMITS.pos); if (y != null) el.y = y;
+  const w = clampNum(msg.w, 8, LIMITS.w); if (w != null) el.w = w;
+  const h = clampNum(msg.h, 8, LIMITS.h); if (h != null) el.h = h;
+  const r = clampNum(msg.r, 1, LIMITS.r); if (r != null) el.r = r;
   scheduleSave();
 }
 
@@ -981,7 +1020,7 @@ function openHostPeer(id) {
   });
 }
 
-export function stopHost() {
+function stopHost() {
   stopTick();
   stopHostHeartbeat();
   resetSyncState();

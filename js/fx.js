@@ -1,11 +1,11 @@
 // Particle effects (explosions, etc.) for visual feedback on the map.
-import { worldToScreen } from './camera.js?v=msa37vkx';
-import { state, effectiveColor } from './state.js?v=msa37vkx';
+import { worldToScreen } from './camera.js?v=msggfhg3';
+import { state, effectiveColor } from './state.js?v=msggfhg3';
 
 let particles = [];
 
 // Make a world box explode into pieces that fall and fade out.
-export function explode(x, y, w, h, color) {
+function explode(x, y, w, h, color) {
   const cx = x + w / 2, cy = y + h / 2;
   const count = Math.max(14, Math.min(48, Math.round((w * h) / 600)));
   for (let i = 0; i < count; i++) {
@@ -28,7 +28,7 @@ export function explode(x, y, w, h, color) {
 }
 
 // Explode an element (node or sign) into particles.
-export function explodeElement(el) {
+function explodeElement(el) {
   if (!el) return;
   if (el.r !== undefined) {
     explode(el.x - el.r, el.y - el.r, el.r * 2, el.r * 2, el.color || '#39ff14');

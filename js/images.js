@@ -4,8 +4,10 @@
 // keeps a short reference 'idb:<hash>'. The bytes only transit ONCE per peer
 // (via sync.js: imgReq/imgRes), and a peer that already has the image never
 // re-downloads it.
-import { putImage, getImage } from './audio.js?v=msa37vkx';
-import { requestImage } from './sync.js?v=msa37vkx';
+import { putImage, getImage, delImage, getAllImageHashes, getAllHistory } from './audio.js?v=msggfhg3';
+import { requestImage } from './sync.js?v=msggfhg3';
+import { state } from './state.js?v=msggfhg3';
+import { listBoards } from './boards.js?v=msggfhg3';
 
 const els = new Map();   // ref -> HTMLImageElement (render cache, 1 per ref)
 const urls = new Map();  // hash -> objectURL (decoded blob, reused)
@@ -144,4 +146,42 @@ export async function inlineImages(nodes) {
 export function onImageArrived(hash, blob) {
   const u = cacheUrl(hash, blob);
   els.forEach((img, ref) => { if (hashOf(ref) === hash) img.src = u; });
+}
+
+// Deletes IndexedDB image blobs that no board content references anymore.
+// Blobs are keyed by content hash, so without this they accumulate forever
+// once their last referencing block is deleted. The live set is: the current
+// board, every saved board in localStorage, and every kept daily history
+// snapshot (reverting to an older day must still resolve its images). Runs
+// at boot (best-effort, never blocks) -- a full cross-board sweep there is
+// simpler and safer than refcounting per deletion (undo/history would
+// otherwise resurface deleted blobs).
+export async function collectGarbageImages() {
+  try {
+    const live = new Set();
+    const addRefs = (nodes) => {
+      for (const n of nodes || []) {
+        if (n && typeof n.image === 'string' && n.image.indexOf('idb:') === 0) live.add(n.image.slice(4));
+      }
+    };
+    addRefs(state.nodes);
+    for (const b of listBoards()) {
+      try {
+        const raw = localStorage.getItem('bete:' + b.id);
+        if (!raw) continue;
+        const data = JSON.parse(raw);
+        addRefs(data && data.nodes);
+      } catch (e) { /* unreadable board: skip it */ }
+    }
+    for (const entries of await getAllHistory()) {
+      for (const e of entries || []) if (e && e.data) addRefs(e.data.nodes);
+    }
+    let removed = 0;
+    for (const h of await getAllImageHashes()) {
+      if (!live.has(h)) { await delImage(h); removed++; }
+    }
+    if (removed) console.log('Bete: image GC removed', removed, 'unreferenced blob(s)');
+  } catch (e) {
+    console.warn('Bete: image GC skipped:', (e && e.message) || e);
+  }
 }

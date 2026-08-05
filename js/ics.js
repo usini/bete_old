@@ -13,9 +13,9 @@
 //    (a desktop build, or one with a working proxy) to fetch it for us;
 //  - web: an optional proxy (Settings > ICS proxy), e.g. the endpoint served
 //    by server/bete-host.js on a Raspberry Pi (see server/README.md).
-import { isDesktop } from './platform.js?v=msa37vkx';
-import { connectorFetch } from './connector.js?v=msa37vkx';
-import { requestIcsFromPeers } from './sync.js?v=msa37vkx';
+import { isDesktop } from './platform.js?v=msggfhg3';
+import { connectorFetch } from './connector.js?v=msggfhg3';
+import { requestIcsFromPeers } from './sync.js?v=msggfhg3';
 
 const PROXY_KEY = 'bete:icsproxy';
 export function getIcsProxy() {
@@ -25,12 +25,19 @@ export function setIcsProxy(url) {
   try { if (url) localStorage.setItem(PROXY_KEY, url); else localStorage.removeItem(PROXY_KEY); } catch (e) { /* */ }
 }
 
-// A link is "an ICS calendar" when its path ends in .ics (query/hash allowed)
+// A link is "an ICS calendar" when its PATH ends in .ics (query/hash allowed)
 // or uses the webcal:// scheme (Apple convention, an alias for HTTP).
+// Deliberately pathname-based: a ".ics" smuggled into the QUERY (e.g.
+// "http://169.254.169.254/meta/?x=1.ics") must not pass the gate -- that
+// would let a fetch land on an internal host with a calendar-shaped URL.
 export function isIcsUrl(url) {
   if (!url) return false;
-  const u = String(url).trim();
-  return /^webcal:\/\//i.test(u) || /\.ics([?#]|$)/i.test(u);
+  const s = String(url).trim();
+  if (/^webcal:\/\//i.test(s)) return true;
+  try {
+    const u = new URL(s, 'https://calendar.invalid'); // relative links resolve here
+    return /^https?:$/.test(u.protocol) && u.pathname.toLowerCase().endsWith('.ics');
+  } catch (e) { return false; }
 }
 
 function normalizeIcsUrl(url) {
@@ -49,6 +56,10 @@ export async function fetchIcsLocal(url) {
   try {
     const res = await connectorFetch(u);
     if (!res.ok) throw new Error('HTTP ' + res.status);
+    // res.url is the FINAL url after any redirects: re-gate it so a redirect
+    // chain can't smuggle an internal host past isIcsUrl (the request may
+    // still be attempted, but its body is never handed back to the peer).
+    if (!isIcsUrl(res.url || u)) throw new Error('not an ics url');
     return await res.text();
   } catch (e) {
     const proxy = getIcsProxy();
@@ -300,7 +311,7 @@ export function retryFailedIcs() {
 }
 
 // Monday 00:00 (local) of the current week -> next Monday.
-export function weekWindow(now = new Date()) {
+function weekWindow(now = new Date()) {
   const dow = (now.getDay() + 6) % 7; // 0 = Monday
   const start = new Date(now.getFullYear(), now.getMonth(), now.getDate() - dow);
   return { start, end: new Date(start.getTime() + 7 * DAY_MS) };

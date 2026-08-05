@@ -1,27 +1,27 @@
 // Bootstrap + render loop.
-import { state, addRect, load, setSaveSuppressed, scheduleSave, newId, setBoardId, setBoardName, getBoardName, initUndoBaseline, restore, COLORS } from './state.js?v=msa37vkx';
-import { setView } from './camera.js?v=msa37vkx';
-import { render } from './render.js?v=msa37vkx';
-import { step, reset } from './physics.js?v=msa37vkx';
-import * as minimap from './minimap.js?v=msa37vkx';
-import * as input from './input.js?v=msa37vkx';
-import * as fx from './fx.js?v=msa37vkx';
-import { joinOrHost, getNetMode, liaisonStatus, disconnect, getUserCount, getPresence, retryAfterAuthFail } from './sync.js?v=msa37vkx';
-import { recordBoard, getBoardEntry, listBoards, buildBoardUrl, parseBoardUrl, reservedBoardLabel } from './boards.js?v=msa37vkx';
-import { TUTORIAL_FR, TUTORIAL_EN } from './tutorial.js?v=msa37vkx';
-import { applyTheme } from './theme.js?v=msa37vkx';
-import { initSettings, openSettings } from './settings.js?v=msa37vkx';
-import { recordLiaison, getLiaison, listLiaisons } from './liaisons.js?v=msa37vkx';
-import { positionVideoOverlay } from './video.js?v=msa37vkx';
-import { toggleMic, isMicOn, toggleListen, isListenOn, toggleCamera, isCameraOn, updateCameraOverlays } from './voicechat.js?v=msa37vkx';
-import { migrateImages } from './images.js?v=msa37vkx';
-import { restoreAudio } from './voice.js?v=msa37vkx';
-import { ensureTodaySnapshot } from './history.js?v=msa37vkx';
-import { pollConnector } from './connector.js?v=msa37vkx';
-import { t, getLang, applyStaticI18n } from './i18n.js?v=msa37vkx';
-import { initDesktopLink, checkWebUpdate, isDesktop, getExportFolder, setExportFolder, pickExportFolder } from './platform.js?v=msa37vkx';
-import { checkForUpdate } from './update.js?v=msa37vkx';
-import { exportAllBoardsToPath } from './io.js?v=msa37vkx';
+import { state, addRect, load, setSaveSuppressed, scheduleSave, newId, setBoardId, setBoardName, getBoardName, initUndoBaseline, restore, COLORS } from './state.js?v=msggfhg3';
+import { setView } from './camera.js?v=msggfhg3';
+import { render } from './render.js?v=msggfhg3';
+import { step, reset } from './physics.js?v=msggfhg3';
+import * as minimap from './minimap.js?v=msggfhg3';
+import * as input from './input.js?v=msggfhg3';
+import * as fx from './fx.js?v=msggfhg3';
+import { joinOrHost, getNetMode, liaisonStatus, disconnect, getUserCount, getPresence, retryAfterAuthFail } from './sync.js?v=msggfhg3';
+import { recordBoard, getBoardEntry, listBoards, buildBoardUrl, parseBoardUrl, reservedBoardLabel } from './boards.js?v=msggfhg3';
+import { TUTORIAL_FR, TUTORIAL_EN } from './tutorial.js?v=msggfhg3';
+import { applyTheme } from './theme.js?v=msggfhg3';
+import { initSettings, openSettings } from './settings.js?v=msggfhg3';
+import { recordLiaison, getLiaison, listLiaisons } from './liaisons.js?v=msggfhg3';
+import { positionVideoOverlay } from './video.js?v=msggfhg3';
+import { toggleMic, isMicOn, toggleListen, isListenOn, toggleCamera, isCameraOn, updateCameraOverlays } from './voicechat.js?v=msggfhg3';
+import { migrateImages, collectGarbageImages } from './images.js?v=msggfhg3';
+import { restoreAudio } from './voice.js?v=msggfhg3';
+import { ensureTodaySnapshot } from './history.js?v=msggfhg3';
+import { pollConnector } from './connector.js?v=msggfhg3';
+import { t, getLang, applyStaticI18n } from './i18n.js?v=msggfhg3';
+import { initDesktopLink, checkWebUpdate, isDesktop, getExportFolder, setExportFolder, pickExportFolder } from './platform.js?v=msggfhg3';
+import { checkForUpdate } from './update.js?v=msggfhg3';
+import { exportAllBoardsToPath } from './io.js?v=msggfhg3';
 
 applyTheme(); // apply the saved theme right at startup
 applyStaticI18n(); // translate the static HTML chrome (buttons, hint, etc.)
@@ -136,8 +136,20 @@ resize();
 
 
 // ---- Board selection (multi-boards) ----
+// Board ids that would collide with the app's own localStorage keys
+// (bete:<name>) if used as board storage keys (state.js: setBoardId builds
+// 'bete:'+boardId). A crafted ?id=<name> link must never be able to clobber
+// the theme/liaisons/identity/... settings. Board ids are normally random
+// (genBoardId), so a collision can only come from a hand-made URL.
+const RESERVED_BOARD_IDS = new Set([
+  'liaisons', 'theme', 'lang', 'peer', 'uid', 'username',
+  'forcerelay', 'linkmode', 'icsproxy', 'cameradevice', 'clipboard',
+  'seen', 'boardpass', 'ownerkey', 'icscache',
+  'textscale', 'exportdir', 'micalwayson', 'micdevice',
+]);
 function sanitizeId(s) {
-  return String(s).toLowerCase().replace(/[^a-z0-9_-]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 40) || 'home';
+  const id = String(s).toLowerCase().replace(/[^a-z0-9_-]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 40) || 'home';
+  return RESERVED_BOARD_IDS.has(id) ? 'home' : id;
 }
 const params = new URLSearchParams(location.search);
 const idParam = params.get('id');
@@ -217,6 +229,8 @@ if (!REDIRECT) {
   // any inlined audioData only gets pulled back into IndexedDB once that board
   // is actually opened.
   if (boardId !== 'tutorial') restoreAudio(state.nodes).catch(() => {});
+  // Background sweep of unreferenced IndexedDB image blobs (best-effort).
+  if (boardId !== 'tutorial') collectGarbageImages();
 
   // Starts polling every connector block already on this board (each device polls independently).
   for (const n of state.nodes) if (n.kind === 'connector') pollConnector(n).catch(() => {});

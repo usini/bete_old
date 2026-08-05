@@ -4,22 +4,22 @@
 // had grown into an unreadable wall of ~25 tiny buttons. The visited-boards
 // list that used to live here is gone: the built-in "boards" directory board
 // (js/main.js: loadBoardsDirectory) already is that list, one tile away.
-import { state, getBoardId, scheduleSave, load } from './state.js?v=msa37vkx';
-import { reset } from './physics.js?v=msa37vkx';
-import { theme, themeId_, setTheme, getTextScale, setTextScale, THEME_LIST } from './theme.js?v=msa37vkx';
-import { listBoardHistory, updateTodaySnapshot, todayStr } from './history.js?v=msa37vkx';
-import { buildBoardUrl, parseBoardUrl, renameBoardsPeer, rewriteLinksPeer } from './boards.js?v=msa37vkx';
-import { listLiaisons, recordLiaison, renameLiaison, removeLiaison, changeLiaisonPeer, getBoardPassHash } from './liaisons.js?v=msa37vkx';
-import { toast } from './main.js?v=msa37vkx';
-import { liaisonStatus, disconnect, getPresence, announceName, setBoardReadOnly, isOwner, getForceRelay, setForceRelay, setBoardPassphrase } from './sync.js?v=msa37vkx';
-import { exportJSON, importJSON, exportAllBoards, importAllBoards, exportAllBoardsToPath } from './io.js?v=msa37vkx';
-import { exportBoardHtml } from './exportHtml.js?v=msa37vkx';
-import { getUserName, setUserName } from './users.js?v=msa37vkx';
-import { isAlwaysOn, setAlwaysOn, listMics, getPreferredMic, setPreferredMic, isMicOn, listCameras, getPreferredCamera, setPreferredCamera } from './voicechat.js?v=msa37vkx';
-import { t, getLang, setLang, LANGS } from './i18n.js?v=msa37vkx';
-import { isDesktop, getLinkMode, setLinkMode, getAppVersion, checkWebUpdate, getExportFolder, setExportFolder, pickExportFolder } from './platform.js?v=msa37vkx';
-import { getIcsProxy, setIcsProxy } from './ics.js?v=msa37vkx';
-import { checkForUpdate } from './update.js?v=msa37vkx';
+import { state, getBoardId, scheduleSave, load } from './state.js?v=msggfhg3';
+import { reset } from './physics.js?v=msggfhg3';
+import { theme, themeId_, setTheme, getTextScale, setTextScale, THEME_LIST } from './theme.js?v=msggfhg3';
+import { listBoardHistory, updateTodaySnapshot, todayStr } from './history.js?v=msggfhg3';
+import { buildBoardUrl, parseBoardUrl, renameBoardsPeer, rewriteLinksPeer } from './boards.js?v=msggfhg3';
+import { listLiaisons, recordLiaison, renameLiaison, removeLiaison, changeLiaisonPeer, getBoardPassHash } from './liaisons.js?v=msggfhg3';
+import { toast } from './main.js?v=msggfhg3';
+import { liaisonStatus, disconnect, getPresence, announceName, setBoardReadOnly, isOwner, getForceRelay, setForceRelay, setBoardPassphrase } from './sync.js?v=msggfhg3';
+import { exportJSON, importJSON, exportAllBoards, importAllBoards, exportAllBoardsToPath } from './io.js?v=msggfhg3';
+import { exportBoardHtml } from './exportHtml.js?v=msggfhg3';
+import { getUserName, setUserName } from './users.js?v=msggfhg3';
+import { isAlwaysOn, setAlwaysOn, listMics, getPreferredMic, setPreferredMic, isMicOn, listCameras, getPreferredCamera, setPreferredCamera } from './voicechat.js?v=msggfhg3';
+import { t, getLang, setLang, LANGS } from './i18n.js?v=msggfhg3';
+import { isDesktop, getLinkMode, setLinkMode, getAppVersion, checkWebUpdate, getExportFolder, setExportFolder, pickExportFolder } from './platform.js?v=msggfhg3';
+import { getIcsProxy, setIcsProxy } from './ics.js?v=msggfhg3';
+import { checkForUpdate } from './update.js?v=msggfhg3';
 
 function el(tag, cls, txt) {
   const e = document.createElement(tag);
@@ -44,7 +44,7 @@ export function initSettings() {
   }
 }
 
-export function closeSettings() {
+function closeSettings() {
   document.getElementById('settings').classList.add('hidden');
   document.removeEventListener('keydown', onEscape);
 }

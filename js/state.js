@@ -1,7 +1,7 @@
 // Shared data model + localStorage persistence.
-import { pointInHex } from './geom.js?v=msa37vkx';
-import { getUserId } from './users.js?v=msa37vkx';
-import { parseBoardUrl, buildBoardUrl } from './boards.js?v=msa37vkx';
+import { pointInHex } from './geom.js?v=msggfhg3';
+import { getUserId } from './users.js?v=msggfhg3';
+import { parseBoardUrl, buildBoardUrl } from './boards.js?v=msggfhg3';
 
 export const DEFAULT_GREEN = '#39ff14';
 
@@ -32,6 +32,34 @@ export const BUTTON_COLORS = [
   '#f2f2f2', // white
   '#7a4a2b', // brown
 ];
+
+// ---- Untrusted-data sanitizers (network sync, JSON import) ----
+// A hostile peer (or a crafted board file) must not be able to set NaN,
+// strings, or absurd sizes into positions/sizes -- that breaks the physics
+// and the render -- nor push multi-MB texts (RAM/disk growth on every
+// device of the liaison, and on the Pi host). Coerce to finite numbers in a
+// sane range and cap text lengths. Used by load(), sync.js's merge/applyMove
+// and the headless host's equivalent (server/bete-host.js).
+export const LIMITS = { pos: 1e6, w: 1e5, h: 1e5, r: 1e5, text: 20000, yaml: 50000 };
+export function clampNum(v, min, max) {
+  const n = Number(v);
+  return Number.isFinite(n) ? Math.min(max, Math.max(min, n)) : undefined;
+}
+export function clampText(v, max = LIMITS.text) {
+  if (typeof v !== 'string' && typeof v !== 'number') return '';
+  return String(v).slice(0, max);
+}
+// Geometry for a rect/link/zone entry, with sensible fallbacks (a missing or
+// garbage field becomes the default size instead of NaN).
+export function clampGeom(n) {
+  return {
+    x: clampNum(n.x, -LIMITS.pos, LIMITS.pos) ?? 0,
+    y: clampNum(n.y, -LIMITS.pos, LIMITS.pos) ?? 0,
+    w: clampNum(n.w, 8, LIMITS.w) ?? 150,
+    h: clampNum(n.h, 8, LIMITS.h) ?? 70,
+    r: clampNum(n.r, 1, LIMITS.r) ?? 50,
+  };
+}
 
 // Storage key per board (multi-boards). 'home' = default personal page.
 let _boardId = 'home';
@@ -195,12 +223,20 @@ export function serialize() {
 
 export function load(obj) {
   if (!obj || typeof obj !== 'object') return false;
-  if (obj.name != null) _boardName = obj.name;
+  if (obj.name != null) _boardName = clampText(obj.name, 100);
   state.readOnly = !!obj.readOnly;
   state.camera = obj.camera ? { ...obj.camera } : { x: 0, y: 0, zoom: 1 };
-  state.nodes = Array.isArray(obj.nodes) ? obj.nodes.map(n => ({ ...n })) : [];
-  state.circles = Array.isArray(obj.circles) ? obj.circles.map(c => ({ ...c })) : [];
-  state.hexagons = Array.isArray(obj.hexagons) ? obj.hexagons.map(h => ({ ...h })) : [];
+  state.camera.x = clampNum(state.camera.x, -LIMITS.pos, LIMITS.pos) ?? 0;
+  state.camera.y = clampNum(state.camera.y, -LIMITS.pos, LIMITS.pos) ?? 0;
+  state.camera.zoom = clampNum(state.camera.zoom, 0.01, 100) ?? 1;
+  // Sanitize every entry: geometry via clampGeom, text/description via
+  // clampText. A JSON import is untrusted input -- same hardening as a
+  // network sync (see the sanitizers above). Non-object entries (null,
+  // primitives) are dropped rather than crashing the spread/clamp.
+  const objs = (arr) => (Array.isArray(arr) ? arr.filter((x) => x && typeof x === 'object') : []);
+  state.nodes = objs(obj.nodes).map(n => ({ ...n, ...clampGeom(n), text: n.ref ? undefined : clampText(n.text) }));
+  state.circles = objs(obj.circles).map(c => ({ ...c, ...clampGeom(c), description: clampText(c.description) }));
+  state.hexagons = objs(obj.hexagons).map(h => ({ ...h, ...clampGeom(h), description: clampText(h.description) }));
   // Prunes orphan links (source gone).
   state.nodes = state.nodes.filter(n => !n.ref || state.nodes.some(m => m.id === n.ref && !m.ref));
   // Corrects legacy board links that still carry a full origin (old exports,
@@ -250,8 +286,6 @@ export function scheduleSave() {
   if (_saveSuppressed || _saveTimer) return;
   _saveTimer = setTimeout(() => { _saveTimer = null; commitSave(); }, 400);
 }
-
-export function canUndo() { return _undoStack.length > 0; }
 
 // Undoes the last change (reverts to the previous state).
 export function undo() {

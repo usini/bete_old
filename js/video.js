@@ -1,9 +1,9 @@
 // Inline YouTube player: an iframe overlaid on the block, following the camera.
 // Only one player active at a time (clicking a video block = play).
-import { state } from './state.js?v=msa37vkx';
-import { worldToScreen } from './camera.js?v=msa37vkx';
-import { youTubeId, ytEmbed } from './yt.js?v=msa37vkx';
-import { t } from './i18n.js?v=msa37vkx';
+import { state } from './state.js?v=msggfhg3';
+import { worldToScreen } from './camera.js?v=msggfhg3';
+import { youTubeId, ytEmbed } from './yt.js?v=msggfhg3';
+import { t } from './i18n.js?v=msggfhg3';
 
 let activeId = null;   // id of the node currently playing
 let wrap = null;       // DOM container (iframe + close button)
@@ -26,12 +26,12 @@ export function setActiveVideo(node) {
   positionVideoOverlay();
 }
 
-export function clearActiveVideo() {
+function clearActiveVideo() {
   if (wrap) { wrap.remove(); wrap = null; }
   activeId = null;
 }
 
-export function isVideoActive(id) { return activeId === id; }
+function isVideoActive(id) { return activeId === id; }
 
 // Called every frame: realigns the iframe on the block (or closes it if no longer valid).
 export function positionVideoOverlay() {

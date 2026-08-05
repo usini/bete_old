@@ -305,29 +305,72 @@ async fn fetch_ics(url: String) -> Result<String, String> {
         .map_err(|e| e.to_string())?
 }
 
+// Mirror of server/bete-host.js's blockedIcsHost: loopback + link-local
+// (cloud metadata lives on 169.254.169.254) must never be a calendar
+// fetch target. Private RFC1918 and mDNS (.local) stay allowed -- LAN
+// calendars are a first-class feature.
+fn blocked_ics_host(host: Option<&str>) -> bool {
+    let Some(h) = host else { return true; };
+    let h = h
+        .trim_start_matches('[')
+        .trim_end_matches(']')
+        .to_lowercase();
+    if h == "localhost"
+        || h.ends_with(".localhost")
+        || h == "::1"
+        || h == "::"
+        || h.starts_with("fe80:")
+        || h.starts_with("169.254.")
+    {
+        return true;
+    }
+    if let Ok(ip) = h.parse::<std::net::IpAddr>() {
+        return ip.is_loopback() || ip.is_link_local();
+    }
+    false
+}
+
 fn fetch_ics_blocking(url: &str) -> Result<String, String> {
-    let parsed = url::Url::parse(url).map_err(|e| e.to_string())?;
-    if parsed.scheme() != "http" && parsed.scheme() != "https" {
-        return Err("unsupported scheme".into());
+    // Same SSRF discipline as server/bete-host.js's fetchIcsForPeer: follow
+    // redirects MANUALLY (ureq would otherwise follow them transparently)
+    // and re-apply the http(s) + pathname-.ics + host checks to every hop --
+    // a single 302 must not be able to jump to an internal host and hand
+    // back its body to whoever asked for the calendar.
+    let mut cur = url.to_string();
+    for _ in 0..5 {
+        let parsed = url::Url::parse(&cur).map_err(|e| e.to_string())?;
+        if parsed.scheme() != "http" && parsed.scheme() != "https" {
+            return Err("unsupported scheme".into());
+        }
+        if !parsed.path().to_lowercase().ends_with(".ics") || blocked_ics_host(parsed.host_str()) {
+            return Err("not an ics url".into());
+        }
+        let resp = ureq::get(&cur)
+            .redirects(0)
+            .timeout(std::time::Duration::from_secs(15))
+            .call()
+            .map_err(|e| e.to_string())?;
+        if (300..400).contains(&resp.status()) {
+            let loc = resp
+                .header("location")
+                .ok_or("redirect without location".to_string())?;
+            cur = parsed
+                .join(loc)
+                .map_err(|e| e.to_string())?
+                .to_string();
+            continue;
+        }
+        let mut buf = Vec::new();
+        resp.into_reader()
+            .take(ICS_MAX_BYTES + 1)
+            .read_to_end(&mut buf)
+            .map_err(|e| e.to_string())?;
+        if buf.len() as u64 > ICS_MAX_BYTES {
+            return Err("too large".into());
+        }
+        return String::from_utf8(buf).map_err(|e| e.to_string());
     }
-    let path_and_query = format!(
-        "{}?{}",
-        parsed.path().to_lowercase(),
-        parsed.query().unwrap_or("").to_lowercase()
-    );
-    if !path_and_query.contains(".ics") {
-        return Err("not an ics url".into());
-    }
-    let mut text = String::new();
-    ureq::get(url)
-        .timeout(std::time::Duration::from_secs(15))
-        .call()
-        .map_err(|e| e.to_string())?
-        .into_reader()
-        .take(ICS_MAX_BYTES)
-        .read_to_string(&mut text)
-        .map_err(|e| e.to_string())?;
-    Ok(text)
+    Err("too many redirects".into())
 }
 
 // Writes the "export all boards on exit" JSON straight to disk, given an

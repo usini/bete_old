@@ -84,7 +84,7 @@ js/audio.js               IndexedDB: audio blobs (voice memos) + images + board 
 js/images.js              image offload -> IndexedDB (ref 'idb:<hash>'), migration, export
 js/voice.js               voice memos: recording, playback, P2P sharing
 js/history.js             daily board-history snapshots (revert), IndexedDB-backed
-js/voicechat.js           live voice chat (WebRTC mesh), Always On, mic choice
+js/voicechat.js           live voice+video chat (WebRTC mesh, up to 4 cameras), Always On, mic/camera/screen-share pickers
 js/settings.js            Settings panel (theme, language, liaisons, voice, data...)
 js/i18n.js                i18n engine: FR/EN dictionaries, t(), language detection/persistence
 js/boards.js, liaisons.js multi-board management + named liaisons
@@ -93,6 +93,13 @@ js/users.js               local identity (uid, displayed name)
 js/yt.js, video.js         YouTube inline thumbnail/player integration
 js/ics.js                 ICS calendar blocks: fetch (CORS workarounds), parser, RRULE, cache
 js/fx.js                  particle explosion on deletion
+js/connector.js           IoT/HTTP connector blocks: YAML program, polls/actuates local devices
+js/exportHtml.js          export board as a standalone frozen HTML snapshot (pan/zoom only, no network)
+js/platform.js            desktop (Tauri) detection + LAN link mode; no-op on the web build
+js/update.js              desktop-only auto-update via the Tauri updater (esm.sh; never loaded on web)
+js/debug.js               wobble-physics debug panel (hidden, '²' key)
+js/geom.js                hexagon geometry helpers
+js/vendor/                vendored minified libs (peerjs, qrcode, js-yaml), loaded lazily — no CDN at runtime
 js/tutorial.js             built-in demo board (read-only), FR + EN variants
 cachebust.mjs             adds ?v=<version> to imports before every deploy
 CNAME                     custom GitHub Pages domain (bete.usini.eu)
@@ -102,6 +109,9 @@ desktop/                  Windows desktop wrapper (Tauri) — see desktop/README
 
 No bundler: modules are imported directly (`import ... from './x.js?v=...'`).
 The `?v=` is a cache-buster, not a real version — see below.
+Third-party libs (PeerJS, QR, js-yaml) are vendored minified in `js/vendor/` and
+loaded lazily, so the web build makes no CDN fetch at runtime (the desktop-only
+updater in `js/update.js` is the one exception, and only inside the Tauri wrapper).
 
 ## Data model (`state.js`)
 
@@ -227,12 +237,38 @@ dictionary objects (`STRINGS.fr`, `STRINGS.en`) plus a lookup function.
   each other), the host can simply refuse to merge/relay `sync`/`move`/`delete`
   content coming from a guest connection (`handleData`'s `origin` param is only
   ever set for messages actually received over the wire — never for the
-  host's own local edits) — a real guarantee, not just a disabled UI. The
+  host's own local edits) — a real guarantee, not just a disabled UI.
+- **Wire input is sanitized on receipt** (`state.js`: `clampNum`/`clampText`/
+  `clampGeom` + `LIMITS`, mirrored in `server/bete-host.js`): geometry from a
+  sync/move payload is clamped to finite in-range numbers (a hostile peer
+  can't inject NaN/absurd sizes into the physics/render) and texts are capped
+  (20k chars, 50k for connector YAML) so no device of the liaison nor the Pi
+  host can be made to grow RAM/disk without limit. `js/sync.js`'s `icsReq`/
+  `icsRes` handlers also re-validate the URL with `isIcsUrl()` on receipt —
+  a wire message must never turn a browser/desktop into an unconstrained
+  fetch relay (SSRF to LAN/internal hosts), unlike the Pi's
+  `fetchIcsForPeer` which validates too but additionally allows any
+  http(s) `.ics`-shaped URL.
+- **Board ids that would collide with app localStorage keys are refused**
+  (`js/main.js`: `RESERVED_BOARD_IDS`): a crafted `?id=theme`/`?id=liaisons`/
+  `?id=uid`... link must not clobber `bete:theme` etc. via `state.js`'s
+  `'bete:'+boardId` storage key. Board ids are random by default, so this
+  only affects hand-made URLs. The
   headless Pi host (`server/bete-host.js`) has no such built-in "host process"
   to trust (every connection is symmetric there), so it uses a separate
   **owner token** mechanism instead: the first client ever to connect to a
   fresh board is auto-adopted as its owner (token generated client-side in
   `js/liaisons.js`, `getOwnerToken()`); see `server/README.md`.
+- **Opt-in board passphrase** (`liaisons.js` + `sync.js`: `setBoardPassphrase`): a
+  per-board second secret required on top of the link/peer id. Only the SHA-256
+  hash is ever stored locally (`bete:boardpass:<boardId>`), never the plaintext.
+  The host (or the Pi's owner) holds the reference hash; a guest sends its own
+  hash along on every connect and, if it doesn't match, is shown a passphrase
+  prompt and retries the SAME connection (`main.js` rejection UI).
+- **Opt-in force relay** (`sync.js`, `bete:forcerelay`): pushes every P2P
+  connection through a TURN relay so the peer never learns your IP; the actual
+  liaison type (direct p2p vs relay) is detected from the stats and shown in
+  the UI.
 
 ## Images: IndexedDB offload (`images.js`, `audio.js`)
 
@@ -243,6 +279,11 @@ rebroadcasting base64 on every sync tick would saturate the P2P connection
 (to the point of crashing the Pi host).
 
 - `storeImage(dataUrl)` → writes to IndexedDB, returns the ref.
+- `collectGarbageImages()`: background boot sweep (in `main.js`) that deletes
+  image blobs no longer referenced by the current board, any saved board in
+  localStorage, or any kept daily history snapshot (reverting to an old day
+  must still resolve its images). Chosen over per-deletion refcounting
+  because undo/history would otherwise resurface deleted blobs.
 - `getImageEl(ref)` (used by render.js via `getImg`) → resolves the ref to an
   `<img>`, requests the bytes from peers if missing locally (`requestImage`/`imgReq`).
 - `migrateImages()`: converts legacy images (data URL) to IndexedDB refs as a

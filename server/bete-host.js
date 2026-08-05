@@ -54,6 +54,36 @@ function sanitizeBoard(s) {
   return String(s || '').toLowerCase().replace(/[^a-z0-9_-]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 40) || 'home';
 }
 
+// ---- Untrusted-data sanitizers (mirror of js/state.js -- see there) ----
+// A client's sync/move payload must not be able to set NaN/strings/absurd
+// sizes (physics/render of every connected device) nor multi-MB texts
+// (RAM+disk growth on the host). Also caps ids stored in tombstones.
+const LIMITS = { pos: 1e6, w: 1e5, h: 1e5, r: 1e5, text: 20000, yaml: 50000 };
+function clampNum(v, min, max) {
+  const n = Number(v);
+  return Number.isFinite(n) ? Math.min(max, Math.max(min, n)) : undefined;
+}
+function clampText(v, max = LIMITS.text) {
+  if (typeof v !== 'string' && typeof v !== 'number') return '';
+  return String(v).slice(0, max);
+}
+function sanitizeEntry(e) {
+  if (!e || typeof e !== 'object') return {};
+  const out = { ...e };
+  if (typeof out.x !== 'undefined') out.x = clampNum(out.x, -LIMITS.pos, LIMITS.pos) ?? 0;
+  if (typeof out.y !== 'undefined') out.y = clampNum(out.y, -LIMITS.pos, LIMITS.pos) ?? 0;
+  if (typeof out.w !== 'undefined') out.w = clampNum(out.w, 8, LIMITS.w) ?? 150;
+  if (typeof out.h !== 'undefined') out.h = clampNum(out.h, 8, LIMITS.h) ?? 70;
+  if (typeof out.r !== 'undefined') out.r = clampNum(out.r, 1, LIMITS.r) ?? 50;
+  if (typeof out.t !== 'undefined') out.t = clampText(out.t);
+  if (typeof out.d !== 'undefined') out.d = clampText(out.d);
+  if (typeof out.yml !== 'undefined') out.yml = clampText(out.yml, LIMITS.yaml);
+  if (typeof out.col !== 'undefined') out.col = clampText(out.col, 32);
+  if (typeof out.img !== 'undefined') out.img = clampText(out.img, 200);
+  if (typeof out.lk !== 'undefined') out.lk = clampText(out.lk, 1000);
+  return out;
+}
+
 // --- Boards in memory: id -> { content, mt, del, conns, lastSig, saveTimer } ---
 const boards = new Map();
 
@@ -198,15 +228,16 @@ function merge(id, b, remote) {
     return rm > lm || (rm === lm && remote.from === 'host');
   };
   for (const id of remote.del || []) {
-    if (!b.del.has(id)) b.del.add(id);
-    if (b.content.n[id] || b.content.c[id] || b.content.h[id]) {
-      delete b.content.n[id]; delete b.content.c[id]; delete b.content.h[id]; delete b.mt[id]; changed = true;
+    const cid = clampText(id, 64);
+    if (!b.del.has(cid)) b.del.add(cid);
+    if (b.content.n[cid] || b.content.c[cid] || b.content.h[cid]) {
+      delete b.content.n[cid]; delete b.content.c[cid]; delete b.content.h[cid]; delete b.mt[cid]; changed = true;
     }
   }
   const mergeMap = (map, rem) => {
     for (const id in rem || {}) {
       if (b.del.has(id)) continue;
-      if (win(id)) { map[id] = rem[id]; b.mt[id] = (remote.mt && remote.mt[id]) || now(); changed = true; }
+      if (win(id)) { map[id] = sanitizeEntry(rem[id]); b.mt[id] = (remote.mt && remote.mt[id]) || now(); changed = true; }
     }
   };
   mergeMap(b.content.n, remote.n);
@@ -218,18 +249,19 @@ function merge(id, b, remote) {
 function applyMove(b, msg) {
   const e = b.content.n[msg.id] || b.content.c[msg.id] || b.content.h[msg.id];
   if (!e) return;
-  if (msg.x != null) e.x = msg.x;
-  if (msg.y != null) e.y = msg.y;
-  if (msg.w != null) e.w = msg.w;
-  if (msg.h != null) e.h = msg.h;
-  if (msg.r != null) e.r = msg.r;
+  const x = clampNum(msg.x, -LIMITS.pos, LIMITS.pos); if (x != null) e.x = x;
+  const y = clampNum(msg.y, -LIMITS.pos, LIMITS.pos); if (y != null) e.y = y;
+  const w = clampNum(msg.w, 8, LIMITS.w); if (w != null) e.w = w;
+  const h = clampNum(msg.h, 8, LIMITS.h); if (h != null) e.h = h;
+  const r = clampNum(msg.r, 1, LIMITS.r); if (r != null) e.r = r;
 }
 
 function applyDelete(b, msg) {
-  b.del.add(msg.id);
-  audioMem.delete(msg.id); // frees the cached audio
-  if (b.content.n[msg.id] || b.content.c[msg.id] || b.content.h[msg.id]) {
-    delete b.content.n[msg.id]; delete b.content.c[msg.id]; delete b.content.h[msg.id]; delete b.mt[msg.id];
+  const cid = clampText(msg.id, 64);
+  b.del.add(cid);
+  audioMem.delete(cid); // frees the cached audio
+  if (b.content.n[cid] || b.content.c[cid] || b.content.h[cid]) {
+    delete b.content.n[cid]; delete b.content.c[cid]; delete b.content.h[cid]; delete b.mt[cid];
   }
 }
 
@@ -260,6 +292,29 @@ function rateLimited(conn) {
   if (conn._rateWindow !== t) { conn._rateWindow = t; conn._rateCount = 0; }
   conn._rateCount = (conn._rateCount || 0) + 1;
   return conn._rateCount > RATE_LIMIT_PER_SEC;
+}
+
+// Per-IP rate limit for the standalone /ics proxy (see the server block
+// below). 30 requests/minute is plenty for a calendar poll and leaves a
+// wide margin over any legit use. The entry stays in the map (and keeps
+// rejecting) until its 60s window expires -- never delete it on overflow,
+// or the very next request would restart a fresh window.
+const PROXY_RATE_MAX = 30;
+const PROXY_RATE_WINDOW = 60000;
+const proxyRates = new Map(); // ip -> { windowStart, count }
+function proxyRateOk(ip) {
+  const t = now();
+  const r = proxyRates.get(ip);
+  if (!r || t - r.windowStart > PROXY_RATE_WINDOW) {
+    proxyRates.set(ip, { windowStart: t, count: 1 });
+    return true;
+  }
+  r.count += 1;
+  return r.count <= PROXY_RATE_MAX;
+}
+function pruneProxyRates() {
+  const cutoff = now() - PROXY_RATE_WINDOW;
+  for (const [ip, r] of proxyRates) if (r.windowStart < cutoff) proxyRates.delete(ip);
 }
 
 function handleData(id, b, msg, origin) {
@@ -486,17 +541,45 @@ function start() {
 // liaison). Same validation either way: only http(s) urls that look like an
 // ICS feed, size-capped -- this is not a general-purpose fetch relay.
 const ICS_MAX_BYTES = 2 * 1024 * 1024;
+// Loopback + link-local (cloud metadata lives on 169.254.169.254) + IPv6
+// link-local: the one class of internal host a calendar URL must never be
+// allowed to reach. Private RFC1918 ranges and mDNS (.local) stay allowed --
+// LAN calendars are a first-class feature (see PRIVATE_HOST_RE in
+// js/connector.js).
+function blockedIcsHost(hostname) {
+  if (!hostname) return true;
+  const h = hostname.toLowerCase().replace(/^\[|\]$/g, '');
+  if (h === 'localhost' || h.endsWith('.localhost')) return true;
+  if (h === '::1' || h === '::' || h.startsWith('fe80:') || h.startsWith('169.254.')) return true;
+  const m = h.match(/^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/);
+  if (m) return +m[1] === 127 || +m[1] === 0 || (+m[1] === 169 && +m[2] === 254);
+  return false;
+}
 async function fetchIcsForPeer(urlStr) {
   let target;
   try { target = new URL(urlStr); } catch (e) { throw new Error('bad url'); }
-  if (!/^https?:$/.test(target.protocol) || !/\.ics([?#]|$)/i.test(target.pathname + target.search)) {
-    throw new Error('not an ics url');
+  // Every hop is gated, not just the first URL: with redirect:'follow' a
+  // single 302 could jump to an internal host (cloud metadata, router, LAN
+  // service) and hand its body back to the requester. Follow manually and
+  // re-apply the scheme + pathname + host checks to each hop.
+  let cur = target;
+  for (let hops = 0; hops < 5; hops++) {
+    if (!/^https?:$/.test(cur.protocol) || !cur.pathname.toLowerCase().endsWith('.ics') || blockedIcsHost(cur.hostname)) {
+      throw new Error('not an ics url');
+    }
+    const r = await fetch(cur, { redirect: 'manual', signal: AbortSignal.timeout(15000) });
+    if (r.status >= 300 && r.status < 400) {
+      const loc = r.headers.get('location');
+      if (!loc) throw new Error('redirect without location');
+      cur = new URL(loc, cur);
+      continue;
+    }
+    if (!r.ok) throw new Error('upstream ' + r.status);
+    const buf = Buffer.from(await r.arrayBuffer());
+    if (buf.length > ICS_MAX_BYTES) throw new Error('too large');
+    return buf.toString('utf8');
   }
-  const r = await fetch(target, { redirect: 'follow', signal: AbortSignal.timeout(15000) });
-  if (!r.ok) throw new Error('upstream ' + r.status);
-  const buf = Buffer.from(await r.arrayBuffer());
-  if (buf.length > ICS_MAX_BYTES) throw new Error('too large');
-  return buf.toString('utf8');
+  throw new Error('too many redirects');
 }
 
 // Optional standalone proxy (BETE_ICS_PORT=0 disables it): configure its URL
@@ -514,6 +597,11 @@ if (ICS_PORT) {
   };
   const icsSrv = http.createServer((req, res) => {
     if (req.method === 'OPTIONS') { res.writeHead(204, CORS); res.end(); return; }
+    // Per-IP rate limit (sliding window, same shape as the per-connection
+    // one above): the proxy is unauthenticated by design (it only relays
+    // .ics-shaped URLs, and CORS locks it to GET), but a LAN scanner must
+    // not be able to turn this Pi into a free fetch farm at full speed.
+    if (!proxyRateOk(req.socket.remoteAddress)) { res.writeHead(429, CORS); res.end('rate limited'); return; }
     let u;
     try { u = new URL(req.url, 'http://localhost'); } catch (e) { res.writeHead(400, CORS); res.end('bad request'); return; }
     if (req.method !== 'GET' || u.pathname !== '/ics') { res.writeHead(404, CORS); res.end('not found'); return; }
@@ -537,6 +625,7 @@ setInterval(() => {
 }, 3000);
 // Cleans up silent clients (tab closed without a signal): > 9s with no message.
 setInterval(() => {
+  pruneProxyRates();
   const cutoff = Date.now() - 9000;
   for (const [, b] of boards) {
     const before = b.conns.length;

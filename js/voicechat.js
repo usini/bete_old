@@ -11,11 +11,11 @@
 // Whether a peer's video is actually worth DISPLAYING (as opposed to just a
 // blank feed we're ignoring) is driven entirely by presence (`camera: true`),
 // not by inspecting track content -- see syncCameraBlocks().
-import { getPeer, getPresence, setLocalVoice, setLocalCamera, onIncomingCall } from './sync.js?v=msa37vkx';
-import { state, addCameraNode, removeById } from './state.js?v=msa37vkx';
-import { reset } from './physics.js?v=msa37vkx';
-import { worldToScreen } from './camera.js?v=msa37vkx';
-import { t } from './i18n.js?v=msa37vkx';
+import { getPeer, getPresence, setLocalVoice, setLocalCamera, onIncomingCall } from './sync.js?v=msggfhg3';
+import { state, addCameraNode, removeById } from './state.js?v=msggfhg3';
+import { reset } from './physics.js?v=msggfhg3';
+import { worldToScreen } from './camera.js?v=msggfhg3';
+import { t } from './i18n.js?v=msggfhg3';
 
 let micOn = false;
 let listenOn = true; // listening enabled by default
@@ -61,7 +61,7 @@ export function setPreferredMic(id) {
 // Pseudo-device: captures the computer's system/desktop audio (via the
 // browser's screen/tab-share picker) instead of a physical microphone --
 // lets someone play music/video and have others in the liaison hear it.
-export const SYSTEM_AUDIO_ID = 'system-audio';
+const SYSTEM_AUDIO_ID = 'system-audio';
 
 // List of available mics (needs a mic permission already granted to have labels).
 export async function listMics() {
@@ -90,7 +90,7 @@ export function setPreferredCamera(id) {
 // picker) instead of a physical camera -- same idea as SYSTEM_AUDIO_ID above,
 // and fully independent of it (e.g. mic -> "computer sound" + camera ->
 // "share screen" can be combined, or used separately).
-export const SCREEN_SHARE_ID = 'screen-share';
+const SCREEN_SHARE_ID = 'screen-share';
 
 // List of available cameras (needs a camera permission already granted to have labels).
 export async function listCameras() {

@@ -5,8 +5,8 @@
 // node.image/audio bytes (a snapshot's idb: refs still point at whatever is
 // in IndexedDB *now*; an image/memo deleted since would no longer resolve --
 // same caveat as importing an old JSON export).
-import { getHistory, putHistory } from './audio.js?v=msa37vkx';
-import { serialize } from './state.js?v=msa37vkx';
+import { getHistory, putHistory } from './audio.js?v=msggfhg3';
+import { serialize } from './state.js?v=msggfhg3';
 
 const HISTORY_MAX = 7; // ~a week of daily snapshots -- bump freely, nothing else assumes this number
 

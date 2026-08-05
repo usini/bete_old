@@ -4,12 +4,13 @@
 // smart plug). See CLAUDE.md for the read-only vs. host distinction that
 // also applies here (a locked guest may watch a switch's state but not
 // flip it -- enforced in input.js, not in this module).
-import { scheduleSave } from './state.js?v=msa37vkx';
-import { getUserId } from './users.js?v=msa37vkx';
+import { scheduleSave } from './state.js?v=msggfhg3';
+import { getUserId } from './users.js?v=msggfhg3';
 
 // Vendored locally (js/vendor/js-yaml.min.js) so the app keeps working
-// offline -- no CDN fetch at runtime, unlike the PeerJS/QR script loads in
-// sync.js. Loaded lazily (only once a connector block actually exists).
+// offline -- no CDN fetch at runtime, same as the PeerJS/QR libs in
+// js/vendor/ (loaded lazily by sync.js). Loaded lazily (only once a
+// connector block actually exists).
 const YAML_SRC = 'js/vendor/js-yaml.min.js';
 let _yamlLoad = null;
 function loadYaml() {
@@ -25,7 +26,7 @@ function loadYaml() {
   return _yamlLoad;
 }
 
-export async function parseYaml(text) {
+async function parseYaml(text) {
   const yaml = await loadYaml();
   return yaml.load(text || '') || {};
 }
@@ -33,7 +34,7 @@ export async function parseYaml(text) {
 // Accepts a plain dot-path ("output", "params.tC") or the Home Assistant
 // template shape ("{{ value_json.output }}"), extracted via regex -- no
 // real Jinja2 engine, just enough to reuse a single-variable HA snippet.
-export function extractPath(json, pathOrTemplate) {
+function extractPath(json, pathOrTemplate) {
   if (!pathOrTemplate) return undefined;
   const m = /^\{\{\s*value_json\.([\w.]+)\s*\}\}$/.exec(pathOrTemplate.trim());
   const path = m ? m[1] : pathOrTemplate.trim();

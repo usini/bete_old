@@ -82,12 +82,44 @@ export async function getImage(hash) {
   });
 }
 
+// Keys of every stored image blob (for the garbage collector in images.js).
+export async function getAllImageHashes() {
+  const d = await db();
+  return new Promise((res, rej) => {
+    const tx = d.transaction(IMG_STORE, 'readonly');
+    const rq = tx.objectStore(IMG_STORE).getAllKeys();
+    rq.onsuccess = () => res(rq.result || []);
+    rq.onerror = () => rej(rq.error);
+  });
+}
+
+export async function delImage(hash) {
+  const d = await db();
+  return new Promise((res) => {
+    const tx = d.transaction(IMG_STORE, 'readwrite');
+    tx.objectStore(IMG_STORE).delete(hash);
+    tx.oncomplete = () => res();
+    tx.onerror = () => res();
+  });
+}
+
 // ---- Board history (one record per board id, value = array of daily snapshots) ----
 export async function getHistory(boardId) {
   const d = await db();
   return new Promise((res, rej) => {
     const tx = d.transaction(HISTORY_STORE, 'readonly');
     const rq = tx.objectStore(HISTORY_STORE).get(boardId);
+    rq.onsuccess = () => res(rq.result || []);
+    rq.onerror = () => rej(rq.error);
+  });
+}
+
+// Every history record (for the image garbage collector in images.js).
+export async function getAllHistory() {
+  const d = await db();
+  return new Promise((res, rej) => {
+    const tx = d.transaction(HISTORY_STORE, 'readonly');
+    const rq = tx.objectStore(HISTORY_STORE).getAll();
     rq.onsuccess = () => res(rq.result || []);
     rq.onerror = () => rej(rq.error);
   });
